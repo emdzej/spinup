@@ -65,6 +65,15 @@ type FunctionsConfig struct {
 	// routing convention (e.g. "https://spinup.example.com"). If unset, the UI
 	// falls back to showing only the cluster-internal DNS + a port-forward hint.
 	PublicBaseURL string
+	// PublicDomain is the parent domain under which each function gets a
+	// subdomain via a per-function Istio VirtualService (e.g. "spinup.example.com"
+	// produces "hello.spinup.example.com"). Empty disables VirtualService
+	// emission — functions are still reachable via the CP proxy on PublicBaseURL.
+	PublicDomain string
+	// PublicGateway is the "<namespace>/<name>" of the Istio Gateway the
+	// per-function VirtualServices bind to (must serve the wildcard host).
+	// Ignored when PublicDomain is empty.
+	PublicGateway string
 }
 
 type WorkerConfig struct {
@@ -133,6 +142,8 @@ func Load() (Config, error) {
 		Functions: FunctionsConfig{
 			Namespace:     env("SPINUP_FUNCTIONS_NAMESPACE", "spinup-functions"),
 			PublicBaseURL: strings.TrimRight(env("SPINUP_PUBLIC_BASE_URL", ""), "/"),
+			PublicDomain:  strings.TrimSpace(env("SPINUP_FUNCTIONS_PUBLIC_DOMAIN", "")),
+			PublicGateway: strings.TrimSpace(env("SPINUP_FUNCTIONS_PUBLIC_GATEWAY", "")),
 		},
 		K8s: K8sConfig{
 			Kubeconfig: env("SPINUP_KUBECONFIG", ""),

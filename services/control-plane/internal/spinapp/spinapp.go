@@ -36,6 +36,10 @@ const (
 	labelApplicationID = "spinup.io/application-id"
 	fieldManager       = "spinup-control-plane"
 	annotationTenantID = "spinup.io/tenant"
+	// Standard CP marker so operators can grep for every resource the
+	// control-plane emits: `kubectl get all -A -o yaml | grep spinup.io/emitted-by`.
+	annotationEmittedBy    = "spinup.io/emitted-by"
+	annotationEmittedByVal = "control-plane"
 )
 
 // Spec is the caller-provided desired state.
@@ -88,6 +92,7 @@ func (c *Client) Apply(ctx context.Context, s Spec) (*Status, error) {
 			},
 			"annotations": map[string]any{
 				annotationTenantID: s.TenantID,
+				annotationEmittedBy: annotationEmittedByVal,
 			},
 		},
 		"spec": map[string]any{

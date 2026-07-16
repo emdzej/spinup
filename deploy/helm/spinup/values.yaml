@@ -1,5 +1,13 @@
 dnsName: spinup.example.com
 
+# Public function ingress. When set, the CP emits one Istio VirtualService per
+# deployed function, bound to `publicGateway`, with host <fnName>.<publicDomain>.
+# Leave both empty to disable — function invocation via the CP internal API
+# (/api/v1/.../invoke) still works.
+functions:
+  publicDomain: ""     # e.g. "spinup.example.com"
+  publicGateway: ""    # "<namespace>/<gateway-name>", e.g. "spinup/spinup-gateway"
+
 # Namespace where SpinApp resources for user functions are created.
 # The chart creates it and grants the control-plane SA CRUD on spinapps there.
 functionsNamespace:

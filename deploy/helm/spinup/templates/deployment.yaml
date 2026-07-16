@@ -68,6 +68,14 @@ spec:
             {{- end }}
             - name: SPINUP_FUNCTIONS_NAMESPACE
               value: {{ .Values.functionsNamespace.name | quote }}
+            {{- with .Values.functions.publicDomain }}
+            - name: SPINUP_FUNCTIONS_PUBLIC_DOMAIN
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.functions.publicGateway }}
+            - name: SPINUP_FUNCTIONS_PUBLIC_GATEWAY
+              value: {{ . | quote }}
+            {{- end }}
             - name: SPINUP_OCI_REGISTRY_URL
               value: {{ include "spinup.oci.registryUrl" . | quote }}
             {{- with include "spinup.oci.authSecretName" . }}

@@ -14,6 +14,7 @@ import (
 	"github.com/emdzej/spinup/services/control-plane/internal/builder"
 	"github.com/emdzej/spinup/services/control-plane/internal/config"
 	"github.com/emdzej/spinup/services/control-plane/internal/httpapi"
+	"github.com/emdzej/spinup/services/control-plane/internal/istio"
 	"github.com/emdzej/spinup/services/control-plane/internal/k8s"
 	"github.com/emdzej/spinup/services/control-plane/internal/promql"
 	"github.com/emdzej/spinup/services/control-plane/internal/proxy"
@@ -88,6 +89,14 @@ func main() {
 	}
 
 	spinClient := spinapp.New(kc.Dynamic, cfg.Functions.Namespace)
+	// istio VirtualService client. Only used when PublicDomain + PublicGateway
+	// are set (production ingress); otherwise the client is still constructed
+	// but never called.
+	vsClient := istio.New(kc.Dynamic, cfg.Functions.Namespace)
+	if cfg.Functions.PublicDomain != "" && cfg.Functions.PublicGateway != "" {
+		logger.Info("public function ingress enabled",
+			"domain", cfg.Functions.PublicDomain, "gateway", cfg.Functions.PublicGateway)
+	}
 	buildRunner := builder.New(builder.Config{
 		Logger:       logger,
 		Kube:         kc.Typed,
@@ -118,7 +127,7 @@ func main() {
 	uiHandler := webui.Handler(cfg.UI.StaticDir)
 	srv := &http.Server{
 		Addr:              cfg.HTTP.Addr,
-		Handler:           httpapi.New(logger, st, verifier, oauth, spinClient, buildRunner, metrics, metricsHandler, cfg.Functions, promClient, proxyClient, cfg.Worker, uiHandler),
+		Handler:           httpapi.New(logger, st, verifier, oauth, spinClient, vsClient, buildRunner, metrics, metricsHandler, cfg.Functions, promClient, proxyClient, cfg.Worker, uiHandler),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
