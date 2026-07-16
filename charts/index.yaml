@@ -2,8 +2,18 @@ apiVersion: v1
 entries:
   spinup:
   - apiVersion: v2
+    appVersion: 0.1.0-alpha.5
+    created: "2026-07-16T18:30:58.829966534Z"
+    description: Cloud-functions-style control plane for SpinKube.
+    digest: 847fb4d15d5699f002f40cd0b17210dc6851a86653e2c97cf3c86d22a41b5b0d
+    name: spinup
+    type: application
+    urls:
+    - https://emdzej.github.io/spinup/charts/spinup-0.1.0-alpha.5.tgz
+    version: 0.1.0-alpha.5
+  - apiVersion: v2
     appVersion: 0.1.0-alpha.4
-    created: "2026-07-16T17:36:48.444727405Z"
+    created: "2026-07-16T18:30:58.829297355Z"
     description: Cloud-functions-style control plane for SpinKube.
     digest: 81eff7e5b0d063858cf5d5bc597f6b7c840f70068570dfbb87233ceb5a6e00bc
     name: spinup
@@ -13,7 +23,7 @@ entries:
     version: 0.1.0-alpha.4
   - apiVersion: v2
     appVersion: 0.1.0-alpha.3
-    created: "2026-07-16T17:36:48.444067493Z"
+    created: "2026-07-16T18:30:58.82863008Z"
     description: Cloud-functions-style control plane for SpinKube.
     digest: 744e95aec8f2f7caf4570d19092616ce0d290768783f83b5631d31e0d121541d
     name: spinup
@@ -23,7 +33,7 @@ entries:
     version: 0.1.0-alpha.3
   - apiVersion: v2
     appVersion: 0.1.0-alpha.2
-    created: "2026-07-16T17:36:48.443442817Z"
+    created: "2026-07-16T18:30:58.828001534Z"
     description: Cloud-functions-style control plane for SpinKube.
     digest: 2cea08593a421facdcc7db9e64fddf197009b6cf49847453709120fdf54aa7e9
     name: spinup
@@ -33,7 +43,7 @@ entries:
     version: 0.1.0-alpha.2
   - apiVersion: v2
     appVersion: 0.1.0-alpha.1
-    created: "2026-07-16T17:36:48.442784238Z"
+    created: "2026-07-16T18:30:58.82734953Z"
     description: Cloud-functions-style control plane for SpinKube.
     digest: 960c6bc63e305a71ca0e251796b4af3db7eb67b91ead02bc0dacd92b6b0e051a
     name: spinup
@@ -41,4 +51,4 @@ entries:
     urls:
     - https://emdzej.github.io/spinup/charts/spinup-0.1.0-alpha.1.tgz
     version: 0.1.0-alpha.1
-generated: "2026-07-16T17:36:48.441953037Z"
+generated: "2026-07-16T18:30:58.826557249Z"
