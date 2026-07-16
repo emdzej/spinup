@@ -1,0 +1,14 @@
+apiVersion: v1
+entries:
+  spinup:
+  - apiVersion: v2
+    appVersion: 0.1.0-alpha.1
+    created: "2026-07-16T14:08:48.720716388Z"
+    description: Cloud-functions-style control plane for SpinKube.
+    digest: 960c6bc63e305a71ca0e251796b4af3db7eb67b91ead02bc0dacd92b6b0e051a
+    name: spinup
+    type: application
+    urls:
+    - https://emdzej.github.io/spinup/charts/spinup-0.1.0-alpha.1.tgz
+    version: 0.1.0-alpha.1
+generated: "2026-07-16T14:08:48.71938825Z"
