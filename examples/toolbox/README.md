@@ -3,13 +3,20 @@
 Five small stateless HTTP functions modeled after CyberChef's most-used
 recipes:
 
-| Function | POST body | Response |
+| Function | Method + body | Response |
 |---|---|---|
-| `hex-to-text` | hex string (with or without whitespace) | decoded UTF-8 |
-| `text-to-hex` | any UTF-8 text | lowercase hex |
-| `base64-encode` | any UTF-8 text | standard base64 |
-| `base64-decode` | standard or url-safe base64 | decoded UTF-8 |
-| `jwt-decode` | a JWT string | pretty JSON `{ header, payload, signature }` |
+| `hex-to-text` | POST — hex string (whitespace allowed) | decoded UTF-8 |
+| `text-to-hex` | POST — any UTF-8 text | lowercase hex |
+| `base64-encode` | POST — any UTF-8 text | standard base64 |
+| `base64-decode` | POST — standard or url-safe base64 | decoded UTF-8 |
+| `jwt-decode` | POST — a JWT string | pretty JSON `{ header, payload, signature }` |
+| `url-encode` | POST — any UTF-8 text | percent-encoded (`encodeURIComponent`) |
+| `url-decode` | POST — url-encoded text (also accepts `+`-as-space) | decoded UTF-8 |
+| `sha256` | POST — any bytes | lowercase hex digest |
+| `uuid` | GET (optional `?n=<count>`, capped at 1000) | UUIDv4s, one per line |
+| `epoch-to-iso` | POST — unix seconds *or* milliseconds (auto-detected) | ISO-8601 UTC |
+| `iso-to-epoch` | POST — ISO-8601 datetime (optional `?unit=ms`) | unix seconds (or ms) |
+| `json-pretty` | POST — any JSON (`?minify=1`, `?indent=<0-8>`) | reformatted JSON |
 
 Every function is a TypeScript component targeting `@fermyon/spin-sdk`
 (runtime language `TS` in SpinUP).
