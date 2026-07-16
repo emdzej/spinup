@@ -22,6 +22,12 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      # fsGroup lets the distroless-nonroot user (uid 65532) write to
+      # RWO-mounted PVCs; without it the SQLite file open fails on Ceph RBD
+      # and similar block-provisioner classes that mount root:root by default.
+      securityContext:
+        fsGroup: {{ .Values.controlPlane.podSecurityContext.fsGroup }}
+        fsGroupChangePolicy: OnRootMismatch
       containers:
         - name: control-plane
           image: "{{ .Values.controlPlane.image.repository }}:{{ .Values.controlPlane.image.tag }}"

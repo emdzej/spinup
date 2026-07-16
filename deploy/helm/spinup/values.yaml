@@ -112,6 +112,11 @@ controlPlane:
   # kubernetes.io/dockerconfigjson Secret in the release namespace. Leave
   # empty for public registries.
   imagePullSecrets: []
+  # Pod-level security context. fsGroup=65532 matches the `nonroot` user
+  # baked into the distroless base image so PVC-mounted paths become
+  # writable without an initContainer chown.
+  podSecurityContext:
+    fsGroup: 65532
   replicas: 1
   resources:
     requests:
