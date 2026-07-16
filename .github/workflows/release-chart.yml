@@ -1,0 +1,113 @@
+name: Release → Helm chart
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Chart version (SemVer). Defaults to the release tag with the leading v stripped.'
+        required: false
+        default: ''
+      appVersion:
+        description: 'App version. Defaults to the release tag.'
+        required: false
+        default: ''
+
+permissions:
+  contents: write   # push to gh-pages branch for the classic HTTP helm repo
+  packages: write   # push chart as OCI artifact to GHCR
+
+concurrency:
+  group: release-chart-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CHART_DIR: deploy/helm/spinup
+  GHCR_REGISTRY: ghcr.io
+
+jobs:
+  chart:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.2
+
+      - name: Repository owner (lowercase)
+        id: owner
+        run: echo "value=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >>"$GITHUB_OUTPUT"
+
+      - name: Resolve versions
+        id: v
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            VERSION="${{ inputs.version }}"
+          elif [ "${{ github.event_name }}" = "release" ]; then
+            VERSION="${{ github.event.release.tag_name }}"
+            VERSION="${VERSION#v}"
+          else
+            VERSION="0.0.0-sha-$(git rev-parse --short=12 HEAD)"
+          fi
+          if [ -n "${{ inputs.appVersion }}" ]; then
+            APP="${{ inputs.appVersion }}"
+          elif [ "${{ github.event_name }}" = "release" ]; then
+            APP="${{ github.event.release.tag_name }}"
+          else
+            APP="0.0.0"
+          fi
+          echo "version=$VERSION" >>"$GITHUB_OUTPUT"
+          echo "appVersion=$APP"  >>"$GITHUB_OUTPUT"
+
+      - name: Lint
+        run: |
+          helm lint "$CHART_DIR" \
+            --set dnsName=spinup.example.com \
+            --set oidc.issuerUrl=https://example.com/ \
+            --set oidc.clientId=example \
+            --set oci.registryUrl=ghcr.io/example/spinup
+
+      - name: Package chart
+        run: |
+          mkdir -p dist/charts
+          helm package "$CHART_DIR" \
+            --destination dist/charts \
+            --version "${{ steps.v.outputs.version }}" \
+            --app-version "${{ steps.v.outputs.appVersion }}"
+          ls -la dist/charts
+
+      - name: Login to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login "$GHCR_REGISTRY" -u "${{ github.actor }}" --password-stdin
+
+      - name: Push chart as OCI artifact
+        run: |
+          helm push dist/charts/spinup-${{ steps.v.outputs.version }}.tgz oci://$GHCR_REGISTRY/${{ steps.owner.outputs.value }}/charts
+
+      - name: Also publish to classic HTTP repo (gh-pages branch)
+        # Deploys to https://<owner>.github.io/<repo>/charts/index.yaml if gh-pages is configured.
+        # The Docs workflow deploys the same gh-pages branch content — we merge the charts/ subpath in.
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Fetch existing gh-pages (may not exist yet)
+          if git ls-remote --exit-code --heads origin gh-pages >/dev/null 2>&1; then
+            git fetch origin gh-pages
+            git worktree add /tmp/gh-pages gh-pages
+          else
+            git worktree add --detach /tmp/gh-pages
+            (cd /tmp/gh-pages && git checkout --orphan gh-pages && git rm -rf . >/dev/null 2>&1 || true)
+          fi
+
+          mkdir -p /tmp/gh-pages/charts
+          cp dist/charts/*.tgz /tmp/gh-pages/charts/
+          (cd /tmp/gh-pages && helm repo index charts --url "https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/charts")
+
+          (cd /tmp/gh-pages \
+            && git add charts \
+            && git commit -m "chart: release ${{ steps.v.outputs.version }}" \
+            && git push origin HEAD:gh-pages)

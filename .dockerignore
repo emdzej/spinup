@@ -1,0 +1,38 @@
+# Node
+node_modules/
+.pnpm-store/
+.svelte-kit/
+apps/*/build/
+apps/*/dist/
+apps/*/.svelte-kit/
+
+# Rust
+services/worker/target/
+target/
+
+# Go build cache (not usually committed but be safe)
+services/*/bin/
+
+# Docs — CI builds them in their own step; not needed in Docker contexts
+docs/.vitepress/dist/
+docs/.vitepress/cache/
+docs/node_modules/
+
+# Version control
+.git/
+.github/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+
+# Local env / secrets
+.env
+.env.*
+!.env.example
+
+# SQLite (dev only)
+*.db
+*.db-shm
+*.db-wal

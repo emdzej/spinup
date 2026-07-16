@@ -1,0 +1,42 @@
+# Node / pnpm
+node_modules/
+.pnpm-store/
+.svelte-kit/
+build/
+dist/
+
+# Go
+bin/
+*.test
+*.out
+coverage.txt
+vendor/
+
+# Rust
+target/
+**/target/
+
+# VitePress
+docs/.vitepress/cache/
+docs/.vitepress/dist/
+
+# UI build baked into the control-plane image (Dockerfile writes here).
+# The .gitkeep placeholder stays; every other file is generated.
+services/control-plane/internal/webui/dist/*
+!services/control-plane/internal/webui/dist/.gitkeep
+
+# Local env / secrets
+.env
+.env.*
+!.env.example
+
+# SQLite
+*.db
+*.db-shm
+*.db-wal
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp

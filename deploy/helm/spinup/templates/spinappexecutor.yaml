@@ -1,0 +1,21 @@
+{{- if .Values.spinAppExecutor.create }}
+apiVersion: core.spinkube.dev/v1alpha1
+kind: SpinAppExecutor
+metadata:
+  name: {{ .Values.spinAppExecutor.name }}
+  namespace: {{ .Values.functionsNamespace.name }}
+  labels:
+    {{- include "spinup.labels" . | nindent 4 }}
+spec:
+  createDeployment: true
+  deploymentConfig:
+    runtimeClassName: {{ .Values.spinAppExecutor.runtimeClassName }}
+    installDefaultCACerts: {{ .Values.spinAppExecutor.installDefaultCACerts }}
+    {{- if .Values.observability.otelCollector.enabled }}
+    otel:
+      # Use OTLP/HTTP (4318). The shim's OTel gRPC exporter defaults to TLS
+      # and does not downgrade to h2c even when the URL scheme is http://,
+      # so the gRPC path silently fails against an insecure collector.
+      exporter_otlp_endpoint: "http://{{ .Chart.Name }}-otel-collector.{{ .Release.Namespace }}.svc.cluster.local:4318"
+    {{- end }}
+{{- end }}

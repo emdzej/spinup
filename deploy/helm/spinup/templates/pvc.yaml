@@ -1,0 +1,18 @@
+{{- if and (eq .Values.db.driver "sqlite") .Values.db.sqlite.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "spinup.controlPlane.name" . }}-data
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "spinup.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.db.sqlite.persistence.size }}
+  {{- with .Values.db.sqlite.persistence.storageClassName }}
+  storageClassName: {{ . }}
+  {{- end }}
+{{- end }}

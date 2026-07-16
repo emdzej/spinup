@@ -1,0 +1,101 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "spinup.controlPlane.name" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "spinup.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.controlPlane.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "spinup.name" . }}
+      app.kubernetes.io/component: control-plane
+  template:
+    metadata:
+      labels:
+        {{- include "spinup.labels" . | nindent 8 }}
+        app.kubernetes.io/component: control-plane
+    spec:
+      serviceAccountName: {{ include "spinup.controlPlane.name" . }}
+      containers:
+        - name: control-plane
+          image: "{{ .Values.controlPlane.image.repository }}:{{ .Values.controlPlane.image.tag }}"
+          imagePullPolicy: {{ .Values.controlPlane.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: SPINUP_HTTP_ADDR
+              value: ":8080"
+            - name: SPINUP_OIDC_ISSUER_URL
+              value: {{ required "oidc.issuerUrl is required" .Values.oidc.issuerUrl | quote }}
+            - name: SPINUP_OIDC_CLIENT_ID
+              value: {{ required "oidc.clientId is required" .Values.oidc.clientId | quote }}
+            {{- with .Values.oidc.audience }}
+            - name: SPINUP_OIDC_AUDIENCE
+              value: {{ . | quote }}
+            {{- end }}
+            - name: SPINUP_OIDC_REDIRECT_URL
+              value: {{ default (printf "https://%s/auth/callback" .Values.dnsName) .Values.oidc.redirectUrl | quote }}
+            {{- if .Values.oidc.clientSecret.existingSecret }}
+            - name: SPINUP_OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.oidc.clientSecret.existingSecret | quote }}
+                  key: {{ .Values.oidc.clientSecret.secretKey | default "client-secret" | quote }}
+            {{- else if .Values.oidc.clientSecret.value }}
+            - name: SPINUP_OIDC_CLIENT_SECRET
+              value: {{ .Values.oidc.clientSecret.value | quote }}
+            {{- end }}
+            {{- with .Values.authz.requiredRoles }}
+            - name: SPINUP_AUTHZ_REQUIRED_ROLES
+              value: {{ join "," . | quote }}
+            {{- end }}
+            {{- if .Values.worker.enabled }}
+            - name: SPINUP_WORKER_URL
+              value: "http://{{ .Chart.Name }}-worker.{{ .Release.Namespace }}.svc.cluster.local"
+            {{- end }}
+            - name: SPINUP_FUNCTIONS_NAMESPACE
+              value: {{ .Values.functionsNamespace.name | quote }}
+            - name: SPINUP_OCI_REGISTRY_URL
+              value: {{ include "spinup.oci.registryUrl" . | quote }}
+            {{- with include "spinup.oci.authSecretName" . }}
+            - name: SPINUP_OCI_AUTH_SECRET
+              value: {{ . | quote }}
+            {{- end }}
+            - name: SPINUP_DB_DRIVER
+              value: {{ .Values.db.driver | quote }}
+            {{- if eq .Values.db.driver "sqlite" }}
+            - name: SPINUP_DB_DSN
+              value: {{ .Values.db.sqlite.dsn | quote }}
+            {{- else if eq .Values.db.driver "postgres" }}
+            - name: SPINUP_DB_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ required "db.postgres.secretName is required" .Values.db.postgres.secretName }}
+                  key: {{ .Values.db.postgres.secretKey }}
+            {{- end }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.controlPlane.resources | nindent 12 }}
+          {{- if and (eq .Values.db.driver "sqlite") .Values.db.sqlite.persistence.enabled }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/spinup
+          {{- end }}
+      {{- if and (eq .Values.db.driver "sqlite") .Values.db.sqlite.persistence.enabled }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "spinup.controlPlane.name" . }}-data
+      {{- end }}

@@ -1,0 +1,148 @@
+{{- if .Values.observability.otelCollector.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Chart.Name }}-otel-collector
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "spinup.labels" . | nindent 4 }}
+    app.kubernetes.io/component: otel-collector
+data:
+  config.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+          http:
+            endpoint: 0.0.0.0:4318
+
+    processors:
+      batch:
+        timeout: 5s
+        send_batch_size: 1024
+      resource:
+        attributes:
+          - key: collector.instance
+            value: spinup
+            action: insert
+
+    # spanmetrics turns Spin trigger spans into RED metrics keyed by the
+    # dimensions below. http.route is the per-function key (Spinup assigns
+    # one route per function). status_code lets the UI split success vs error.
+    connectors:
+      spanmetrics:
+        histogram:
+          explicit:
+            buckets: [2ms, 5ms, 10ms, 25ms, 50ms, 100ms, 250ms, 500ms, 1s, 2.5s, 5s, 10s]
+        dimensions:
+          - name: http.route
+          - name: http.request.method
+          - name: http.response.status_code
+        exemplars:
+          enabled: true
+        metrics_flush_interval: 15s
+
+    exporters:
+      # Metrics: expose on /metrics for Vector / VictoriaMetrics scrape.
+      prometheus:
+        endpoint: 0.0.0.0:9464
+        send_timestamps: true
+        resource_to_telemetry_conversion:
+          enabled: true
+      # Traces + logs: default to debug (stdout) until a real backend is wired.
+      # Point at Tempo / Loki / OTLP endpoints in an override values file.
+      debug:
+        verbosity: basic
+
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [batch, resource]
+          exporters: [debug, spanmetrics]
+        # spanmetrics-derived metrics come in via the spanmetrics connector,
+        # then join the same metrics pipeline as OTLP-native metrics.
+        metrics:
+          receivers: [otlp, spanmetrics]
+          processors: [batch, resource]
+          exporters: [prometheus]
+        logs:
+          receivers: [otlp]
+          processors: [batch, resource]
+          exporters: [debug]
+      telemetry:
+        logs:
+          level: info
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Chart.Name }}-otel-collector
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "spinup.labels" . | nindent 4 }}
+    app.kubernetes.io/component: otel-collector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "spinup.name" . }}
+      app.kubernetes.io/component: otel-collector
+  template:
+    metadata:
+      labels:
+        {{- include "spinup.labels" . | nindent 8 }}
+        app.kubernetes.io/component: otel-collector
+      annotations:
+        # Vector / prometheus-community scrape convention.
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9464"
+    spec:
+      containers:
+        - name: collector
+          image: "{{ .Values.observability.otelCollector.image.repository }}:{{ .Values.observability.otelCollector.image.tag }}"
+          imagePullPolicy: {{ .Values.observability.otelCollector.image.pullPolicy }}
+          args:
+            - --config=/etc/otel/config.yaml
+          ports:
+            - name: otlp-grpc
+              containerPort: 4317
+            - name: otlp-http
+              containerPort: 4318
+            - name: metrics
+              containerPort: 9464
+          volumeMounts:
+            - name: config
+              mountPath: /etc/otel
+          resources:
+            {{- toYaml .Values.observability.otelCollector.resources | nindent 12 }}
+      volumes:
+        - name: config
+          configMap:
+            name: {{ .Chart.Name }}-otel-collector
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Chart.Name }}-otel-collector
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "spinup.labels" . | nindent 4 }}
+    app.kubernetes.io/component: otel-collector
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: {{ include "spinup.name" . }}
+    app.kubernetes.io/component: otel-collector
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: otlp-grpc
+    - name: otlp-http
+      port: 4318
+      targetPort: otlp-http
+    - name: metrics
+      port: 9464
+      targetPort: metrics
+{{- end }}

@@ -1,0 +1,128 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    name: control-plane (Go)
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: services/control-plane
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.26'
+          cache: true
+          cache-dependency-path: services/control-plane/go.sum
+      - name: Verify module
+        run: go mod verify
+      - name: Vet
+        run: go vet ./...
+      - name: Build
+        run: go build ./...
+      - name: Test
+        run: go test ./...
+
+  ui:
+    name: UI (SvelteKit)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          # Version comes from package.json's packageManager field.
+          run_install: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Type check
+        run: pnpm --filter ui check
+      - name: Build
+        run: pnpm --filter ui build
+
+  docs:
+    name: Docs (VitePress build)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          # Version comes from package.json's packageManager field.
+          run_install: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Build docs (catches dead links)
+        run: pnpm --filter spinup-docs build
+
+  helm:
+    name: Helm chart
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.2
+      - name: Lint
+        run: |
+          helm lint deploy/helm/spinup \
+            --set dnsName=spinup.example.com \
+            --set oidc.issuerUrl=https://example.com/ \
+            --set oidc.clientId=example \
+            --set oci.registryUrl=ghcr.io/example/spinup
+      - name: Render (spinkube-only default)
+        run: |
+          helm template spinup deploy/helm/spinup \
+            --namespace spinup \
+            --set dnsName=spinup.example.com \
+            --set oidc.issuerUrl=https://example.com/ \
+            --set oidc.clientId=example \
+            --set oci.registryUrl=ghcr.io/example/spinup > /tmp/render-default.yaml
+          test -s /tmp/render-default.yaml
+      - name: Render (all features on)
+        run: |
+          helm template spinup deploy/helm/spinup \
+            --namespace spinup \
+            --set dnsName=spinup.example.com \
+            --set oidc.issuerUrl=https://example.com/ \
+            --set oidc.clientId=example \
+            --set oci.mode=zot \
+            --set worker.enabled=true \
+            --set observability.otelCollector.enabled=true > /tmp/render-full.yaml
+          test -s /tmp/render-full.yaml
+
+  rust:
+    name: worker (Rust) — cargo check
+    runs-on: ubuntu-24.04
+    # Cargo check on wasmtime + tokio + hyper is heavy; keep it a check, not a full build.
+    # Full builds happen in the release-images workflow.
+    defaults:
+      run:
+        working-directory: services/worker
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: services/worker
+      - name: Check
+        run: cargo check --all-targets

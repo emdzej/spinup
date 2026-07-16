@@ -1,0 +1,45 @@
+[package]
+name = "spinup-worker"
+version = "0.1.0"
+edition = "2021"
+description = "Multi-tenant wasmtime host for Spinup applications"
+license = "MIT"
+
+[dependencies]
+# HTTP + async runtime
+tokio = { version = "1", features = ["full"] }
+axum = "0.8"
+hyper = { version = "1", features = ["full"] }
+hyper-util = { version = "0.1", features = ["full"] }
+tower = "0.5"
+bytes = "1"
+http = "1"
+http-body-util = "0.1"
+
+# wasmtime + WASI HTTP (Spin v4 targets WASI Preview 2). Kept at latest —
+# older versions reject the Component Model draft the componentize-go
+# toolchain emits.
+wasmtime = { version = "46", features = ["component-model", "component-model-async", "async"] }
+wasmtime-wasi = { version = "46", features = ["p2", "p3"] }
+wasmtime-wasi-http = { version = "46", features = ["p2", "p3"] }
+
+# Serialization
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+
+# HTTP client (for polling control plane)
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
+# Utilities
+anyhow = "1"
+thiserror = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+async-trait = "0.1"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true

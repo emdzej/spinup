@@ -1,0 +1,46 @@
+{{- if .Values.istio.enabled }}
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: {{ .Chart.Name }}-virtual-service
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "spinup.labels" . | nindent 4 }}
+spec:
+  gateways:
+    - {{ .Chart.Name }}-gateway
+  hosts:
+    - {{ .Values.dnsName }}
+  http:
+    # Control-plane API (auth-guarded by OIDC in the app).
+    - match:
+        - uri:
+            prefix: /api/
+      route:
+        - destination:
+            host: {{ include "spinup.controlPlane.name" . }}
+            port:
+              number: 80
+    # Function invocation surface. The control plane owns a small dispatcher
+    # that maps /fn/{name}/... to the internal Service for the target SpinApp.
+    # V1 sends everything to the control plane; later this can move to a
+    # dedicated gateway service.
+    - match:
+        - uri:
+            prefix: /fn/
+      route:
+        - destination:
+            host: {{ include "spinup.controlPlane.name" . }}
+            port:
+              number: 80
+    # UI (SPA). Served by the control-plane binary or a sibling Deployment
+    # (see values.yaml). Catch-all last so /api and /fn win.
+    - match:
+        - uri:
+            prefix: /
+      route:
+        - destination:
+            host: {{ include "spinup.controlPlane.name" . }}
+            port:
+              number: 80
+{{- end }}

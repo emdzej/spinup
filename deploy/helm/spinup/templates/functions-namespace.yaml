@@ -1,0 +1,9 @@
+{{- if .Values.functionsNamespace.create }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.functionsNamespace.name }}
+  labels:
+    {{- include "spinup.labels" . | nindent 4 }}
+    app.kubernetes.io/component: functions
+{{- end }}

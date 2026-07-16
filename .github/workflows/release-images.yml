@@ -1,0 +1,107 @@
+name: Release → container images
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to build (overrides release tag). Defaults to the release tag or the SHA.'
+        required: false
+        default: ''
+      platforms:
+        description: 'Comma-separated platforms.'
+        required: false
+        default: 'linux/amd64,linux/arm64'
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write   # OIDC token → cosign keyless (optional; enable in the workflow if wanted)
+
+concurrency:
+  group: release-images-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  images:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: control-plane
+            context: .
+            dockerfile: services/control-plane/Dockerfile
+          - name: worker
+            context: services/worker
+            dockerfile: services/worker/Dockerfile
+          - name: builder-go
+            context: builders/go
+            dockerfile: builders/go/Dockerfile
+          - name: builder-js
+            context: builders/js
+            dockerfile: builders/js/Dockerfile
+          - name: builder-ts
+            context: builders/ts
+            dockerfile: builders/ts/Dockerfile
+          - name: builder-rust
+            context: builders/rust
+            dockerfile: builders/rust/Dockerfile
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Resolve tag
+        id: tag
+        run: |
+          if [ -n "${{ inputs.tag }}" ]; then
+            echo "value=${{ inputs.tag }}" >>"$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "release" ]; then
+            echo "value=${{ github.event.release.tag_name }}" >>"$GITHUB_OUTPUT"
+          else
+            echo "value=sha-$(git rev-parse --short=12 HEAD)" >>"$GITHUB_OUTPUT"
+          fi
+
+      - name: Repository owner (lowercase)
+        id: owner
+        run: echo "value=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >>"$GITHUB_OUTPUT"
+
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.owner.outputs.value }}/spinup-${{ matrix.name }}
+          tags: |
+            type=raw,value=${{ steps.tag.outputs.value }}
+            type=raw,value=latest,enable=${{ github.event_name == 'release' && !github.event.release.prerelease }}
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.title=spinup-${{ matrix.name }}
+            org.opencontainers.image.description=Spinup ${{ matrix.name }} image
+            org.opencontainers.image.licenses=Apache-2.0
+
+      - name: Build & push
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          platforms: ${{ inputs.platforms || 'linux/amd64,linux/arm64' }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,scope=${{ matrix.name }},mode=max
+          provenance: mode=max
+          sbom: true

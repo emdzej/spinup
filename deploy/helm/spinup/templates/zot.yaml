@@ -1,0 +1,111 @@
+{{- if eq .Values.oci.mode "zot" }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.oci.zot.service.name }}-config
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "spinup.labels" . | nindent 4 }}
+    app.kubernetes.io/component: registry
+data:
+  config.json: |
+    {
+      "distSpecVersion": "1.1.0",
+      "storage": { "rootDirectory": "/var/lib/zot" },
+      "http": { "address": "0.0.0.0", "port": "{{ .Values.oci.zot.service.port }}" },
+      "log": { "level": "info" }
+    }
+---
+{{- if .Values.oci.zot.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.oci.zot.service.name }}-data
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "spinup.labels" . | nindent 4 }}
+    app.kubernetes.io/component: registry
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.oci.zot.persistence.size }}
+  {{- with .Values.oci.zot.persistence.storageClassName }}
+  storageClassName: {{ . }}
+  {{- end }}
+---
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.oci.zot.service.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "spinup.labels" . | nindent 4 }}
+    app.kubernetes.io/component: registry
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "spinup.name" . }}
+      app.kubernetes.io/component: registry
+  template:
+    metadata:
+      labels:
+        {{- include "spinup.labels" . | nindent 8 }}
+        app.kubernetes.io/component: registry
+    spec:
+      containers:
+        - name: zot
+          image: "{{ .Values.oci.zot.image.repository }}:{{ .Values.oci.zot.image.tag }}"
+          imagePullPolicy: {{ .Values.oci.zot.image.pullPolicy }}
+          args: ["serve", "/etc/zot/config.json"]
+          ports:
+            - name: http
+              containerPort: {{ .Values.oci.zot.service.port }}
+          readinessProbe:
+            httpGet: { path: /v2/, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /v2/, port: http }
+            periodSeconds: 30
+          resources:
+            {{- toYaml .Values.oci.zot.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/zot
+            - name: data
+              mountPath: /var/lib/zot
+      volumes:
+        - name: config
+          configMap:
+            name: {{ .Values.oci.zot.service.name }}-config
+        - name: data
+          {{- if .Values.oci.zot.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.oci.zot.service.name }}-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.oci.zot.service.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "spinup.labels" . | nindent 4 }}
+    app.kubernetes.io/component: registry
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: {{ include "spinup.name" . }}
+    app.kubernetes.io/component: registry
+  ports:
+    - name: http
+      port: {{ .Values.oci.zot.service.port }}
+      targetPort: http
+{{- end }}

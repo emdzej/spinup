@@ -1,0 +1,18 @@
+# Example of the SpinApp CR the control plane will generate per function.
+# Included here for reference only — do not apply directly.
+apiVersion: core.spinkube.dev/v1alpha1
+kind: SpinApp
+metadata:
+  name: hello-go
+  namespace: spinup-functions
+spec:
+  image: zot.spinup.svc.cluster.local/default/hello-go:1
+  executor: containerd-shim-spin
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi

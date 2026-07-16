@@ -1,0 +1,15 @@
+{
+  "name": "spinup",
+  "private": true,
+  "version": "0.0.0",
+  "packageManager": "pnpm@10.33.1",
+  "scripts": {
+    "dev": "pnpm --filter ui dev",
+    "build": "pnpm -r build",
+    "check": "pnpm -r check"
+  },
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=10"
+  }
+}

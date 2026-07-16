@@ -1,0 +1,167 @@
+dnsName: spinup.example.com
+
+# Namespace where SpinApp resources for user functions are created.
+# The chart creates it and grants the control-plane SA CRUD on spinapps there.
+functionsNamespace:
+  name: spinup-functions
+  create: true
+
+# SpinAppExecutor is namespace-scoped: SpinApps reference an executor in their
+# own namespace. spin-operator's default install puts one in `default`, which
+# is not where our SpinApps live, so by default the chart creates one alongside
+# the functions namespace. If your cluster already has an executor in the
+# functions namespace (e.g. a platform-team-managed SpinKube install), set
+# `create: false` and `name` to that existing executor.
+spinAppExecutor:
+  create: true
+  name: containerd-shim-spin
+  runtimeClassName: wasmtime-spin-v2
+  installDefaultCACerts: true
+
+# OCI registry used by the builder to push and by SpinApps to pull.
+observability:
+  # Deploy an OpenTelemetry Collector alongside the control plane. Function
+  # pods (SpinApps) emit OTLP to it; the collector exports metrics via
+  # Prometheus scrape (VictoriaMetrics compatible). Traces + logs currently
+  # go to the collector's debug exporter — hook up a real backend by
+  # editing the ConfigMap.
+  otelCollector:
+    enabled: false
+    image:
+      repository: otel/opentelemetry-collector-contrib
+      tag: "0.111.0"
+      pullPolicy: IfNotPresent
+    resources:
+      requests: { cpu: 100m, memory: 256Mi }
+      limits: { cpu: 1, memory: 512Mi }
+
+worker:
+  # Deploy the spinup-worker component alongside the control plane.
+  # Required for Applications created with runtime=workerpool.
+  # See services/worker/README.md for what the worker does.
+  enabled: false
+  image:
+    repository: ghcr.io/emdzej/spinup-worker
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+  replicas: 1
+  resources:
+    requests: { cpu: 100m, memory: 128Mi }
+    limits:   { cpu: 2, memory: 2Gi }
+  # Bearer token the worker uses against the OIDC-gated /api/v1/worker-config
+  # endpoint. Unset when the control plane runs with dev auth bypass.
+  controlPlaneToken: ""
+
+oci:
+  # mode: "zot" deploys an in-cluster Zot registry; "external" points at an
+  # existing registry via `registryUrl`. Default is external because most
+  # clusters already have a registry (Harbor, GHCR, Artifactory, ECR).
+  mode: external
+
+  # Push destination prefix. Builder image ref becomes
+  # {registryUrl}/{functionName}:{buildId}.
+  # When mode=zot, leave empty — chart fills it from the Zot Service DNS.
+  registryUrl: ""
+
+  # Registry credentials. Precedence: existingSecret > inline > anonymous.
+  # The Secret is mounted at /root/.docker/config.json inside build Jobs so
+  # `spin registry push` picks it up.
+  auth:
+    # Reference an already-created Secret of type kubernetes.io/dockerconfigjson.
+    existingSecret: ""
+    # Or ask the chart to create the Secret from an inline docker config json.
+    # Never commit real credentials to values.yaml — override at install time.
+    inline:
+      enabled: false
+      dockerconfigjson: ""  # base64 encoded? no — plain JSON string, chart base64s it
+
+  # Only used when oci.mode == "zot".
+  zot:
+    image:
+      # Zot doesn't publish a multi-arch tag; pick per your node arch:
+      #   linux/amd64  → ghcr.io/project-zot/zot-linux-amd64:v2.1.2
+      #   linux/arm64  → ghcr.io/project-zot/zot-linux-arm64:v2.1.2
+      repository: ghcr.io/project-zot/zot-linux-amd64
+      tag: v2.1.2
+      pullPolicy: IfNotPresent
+    # Service name inside the release namespace; final push URL becomes
+    # {zot.service.name}.{Release.Namespace}.svc.cluster.local:5000/spinup
+    service:
+      name: zot
+      port: 5000
+    persistence:
+      enabled: true
+      size: 5Gi
+      storageClassName: ""
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        memory: 512Mi
+    # Note: Zot as configured here serves plain HTTP with anonymous access —
+    # fine for dev/single-team. For production, run TLS + auth (cert-manager
+    # cert + Zot auth config in the ConfigMap below).
+
+controlPlane:
+  image:
+    repository: ghcr.io/emdzej/spinup-control-plane
+    tag: "0.1.0"
+    pullPolicy: IfNotPresent
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+oidc:
+  issuerUrl: ""    # e.g. https://login.example.com/
+  clientId: ""    # e.g. spinup
+  audience: ""    # defaults to clientId
+  # Fully-qualified /auth/callback URL registered with the IdP. Leave empty to
+  # derive from `dnsName` (https://{dnsName}/auth/callback). Override when you
+  # front the CP with a URL that differs from the public DNS.
+  redirectUrl: ""
+  # Confidential-client secret used in the browser (BFF) code exchange.
+  # Precedence: existingSecret > inline value. Leave both empty to run in
+  # bearer-only mode (headless usage; the browser login flow won't work).
+  clientSecret:
+    existingSecret: ""            # Secret name in the release namespace
+    secretKey: client-secret      # key inside that Secret
+    value: ""                     # inline; do not commit real secrets
+
+# Authorization policy applied after authentication. Any-of match on the
+# ID token's `roles` claim. Empty list = every authenticated user is allowed.
+# Configure your IdP to project the assigned role into a top-level `roles`
+# array (Keycloak: client role mapper; Entra: App Role; Auth0: post-login
+# action). See docs/install/production.md.
+authz:
+  requiredRoles: []  # e.g. ["spinup"]
+
+# Database. driver = sqlite | postgres.
+# For sqlite: dsn is a file path, and a PVC is created and mounted at /var/lib/spinup.
+# For postgres: dsn is read from an existing Secret (secretName / secretKey).
+db:
+  driver: sqlite
+  sqlite:
+    dsn: /var/lib/spinup/spinup.db
+    persistence:
+      enabled: true
+      size: 2Gi
+      storageClassName: ""
+  postgres:
+    secretName: ""
+    secretKey: dsn
+
+# Ingress: Istio Gateway + VirtualService, matching the pattern used elsewhere
+# in the platform. To use native Kubernetes Ingress or Gateway API instead,
+# disable this block and add your own manifests.
+istio:
+  enabled: true
+  gatewaySelector:
+    istio: ingressgateway
+  tls:
+    credentialName: spinup-gw-credential   # cert-manager-issued cert secret

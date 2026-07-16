@@ -1,0 +1,75 @@
+@import "tailwindcss";
+
+/* Design tokens — surfaced as Tailwind utilities like text-fg, bg-bg-elev,
+   border-border-strong, etc. via the @theme block. */
+@theme {
+  --color-fg: #111827;
+  --color-fg-muted: #6b7280;
+  --color-border: #e5e7eb;
+  --color-border-strong: #d1d5db;
+  --color-accent: #3b82f6;
+  --color-accent-fg: #ffffff;
+  --color-danger: #b91c1c;
+  --color-success: #059669;
+  --color-bg-elev: #f9fafb;
+
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+body {
+  @apply text-fg font-sans;
+  background: #fff;
+}
+
+/* Shared UI primitives. Kept as thin @apply shortcuts so templates read as
+   `class="button primary"` rather than the 6-utility chain that implies. */
+
+.button {
+  @apply inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-border-strong bg-white text-fg text-sm no-underline cursor-pointer font-[inherit] disabled:opacity-50 disabled:cursor-not-allowed hover:bg-bg-elev;
+}
+.button.primary {
+  @apply bg-accent text-accent-fg border-transparent hover:bg-accent hover:brightness-105;
+}
+.button.danger {
+  @apply text-danger border-danger bg-white;
+}
+.button.danger:hover {
+  background: #fef2f2;
+}
+
+.muted {
+  @apply text-fg-muted;
+}
+.error {
+  @apply text-danger;
+}
+
+.pill {
+  @apply inline-block px-2 py-0.5 rounded-full text-xs font-medium border border-border-strong text-fg-muted bg-bg-elev;
+}
+.pill.ok {
+  color: var(--color-success);
+  border-color: #a7f3d0;
+  background: #ecfdf5;
+}
+.pill.wait {
+  color: #92400e;
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+.pill.fail {
+  color: var(--color-danger);
+  border-color: #fecaca;
+  background: #fef2f2;
+}
+
+.card {
+  @apply border border-border rounded-lg px-5 py-4 bg-white;
+}
+.card + .card {
+  @apply mt-4;
+}
+.card h3 {
+  @apply mt-0 mb-3 text-base font-semibold;
+}

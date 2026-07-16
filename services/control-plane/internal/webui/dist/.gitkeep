@@ -1,0 +1,5 @@
+This directory is populated at build time by the control-plane Dockerfile.
+The CP binary embeds the contents via //go:embed dist in embed.go.
+
+In local dev (`go run ./cmd/control-plane`), the CP falls back to
+SPINUP_UI_STATIC_DIR (a filesystem path) if the embedded dist is empty.

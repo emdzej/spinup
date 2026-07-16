@@ -1,0 +1,44 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "spinup.controlPlane.name" . }}-spinapps
+  namespace: {{ .Values.functionsNamespace.name }}
+  labels:
+    {{- include "spinup.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["core.spinkube.dev"]
+    resources: ["spinapps"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Builder Jobs and their supporting Secrets (source + optional registry auth).
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+  # CronJob-based scheduled triggers (planned).
+  - apiGroups: ["batch"]
+    resources: ["cronjobs"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "spinup.controlPlane.name" . }}-spinapps
+  namespace: {{ .Values.functionsNamespace.name }}
+  labels:
+    {{- include "spinup.labels" . | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "spinup.controlPlane.name" . }}
+    namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "spinup.controlPlane.name" . }}-spinapps
