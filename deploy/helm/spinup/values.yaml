@@ -108,6 +108,10 @@ controlPlane:
     repository: ghcr.io/emdzej/spinup-control-plane
     tag: "0.1.0"
     pullPolicy: IfNotPresent
+  # Kubelet-side pull creds. Each entry references a
+  # kubernetes.io/dockerconfigjson Secret in the release namespace. Leave
+  # empty for public registries.
+  imagePullSecrets: []
   replicas: 1
   resources:
     requests:

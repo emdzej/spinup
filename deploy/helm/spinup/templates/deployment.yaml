@@ -18,6 +18,10 @@ spec:
         app.kubernetes.io/component: control-plane
     spec:
       serviceAccountName: {{ include "spinup.controlPlane.name" . }}
+      {{- with .Values.controlPlane.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: control-plane
           image: "{{ .Values.controlPlane.image.repository }}:{{ .Values.controlPlane.image.tag }}"
