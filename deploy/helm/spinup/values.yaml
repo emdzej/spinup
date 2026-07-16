@@ -111,6 +111,20 @@ oci:
     # fine for dev/single-team. For production, run TLS + auth (cert-manager
     # cert + Zot auth config in the ConfigMap below).
 
+# Language builders. The CP creates a Kubernetes Job per build in the
+# functions namespace using the image for the source's language. Override
+# `images.*` to pin a version; leave `imagePullSecrets` empty for public
+# registries.
+builder:
+  images:
+    go:   "ghcr.io/emdzej/spinup-builder-go:latest"
+    js:   "ghcr.io/emdzej/spinup-builder-js:latest"
+    ts:   "ghcr.io/emdzej/spinup-builder-ts:latest"
+    rust: "ghcr.io/emdzej/spinup-builder-rust:latest"
+  # Each entry names a kubernetes.io/dockerconfigjson Secret that MUST live in
+  # the functions namespace (that's where build Pods run).
+  imagePullSecrets: []
+
 controlPlane:
   image:
     repository: ghcr.io/emdzej/spinup-control-plane

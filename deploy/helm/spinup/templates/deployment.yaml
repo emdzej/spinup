@@ -76,6 +76,18 @@ spec:
             - name: SPINUP_FUNCTIONS_PUBLIC_GATEWAY
               value: {{ . | quote }}
             {{- end }}
+            - name: SPINUP_BUILDER_IMAGE_GO
+              value: {{ .Values.builder.images.go | quote }}
+            - name: SPINUP_BUILDER_IMAGE_JS
+              value: {{ .Values.builder.images.js | quote }}
+            - name: SPINUP_BUILDER_IMAGE_TS
+              value: {{ .Values.builder.images.ts | quote }}
+            - name: SPINUP_BUILDER_IMAGE_RUST
+              value: {{ .Values.builder.images.rust | quote }}
+            {{- if .Values.builder.imagePullSecrets }}
+            - name: SPINUP_BUILDER_IMAGE_PULL_SECRETS
+              value: "{{- range $i, $s := .Values.builder.imagePullSecrets }}{{ if $i }},{{ end }}{{ $s.name }}{{- end }}"
+            {{- end }}
             - name: SPINUP_OCI_REGISTRY_URL
               value: {{ include "spinup.oci.registryUrl" . | quote }}
             {{- with include "spinup.oci.authSecretName" . }}

@@ -58,7 +58,11 @@ type Config struct {
 	// AuthSecret names a kubernetes.io/dockerconfigjson Secret to mount at
 	// /root/.docker/config.json in the builder pod. Empty = anonymous.
 	AuthSecret string
-	Metrics    *telemetry.Metrics
+	// ImagePullSecrets are attached to every build Pod so the kubelet can
+	// pull the builder image from a private registry. The Secrets must live
+	// in Namespace (same as the build Jobs). Empty = public registry.
+	ImagePullSecrets []string
+	Metrics          *telemetry.Metrics
 }
 
 // languageProfile pins per-language build wiring: which builder image runs the Job.
@@ -320,7 +324,8 @@ func (r *Runner) createJob(ctx context.Context, buildID string, app store.Applic
 					},
 				},
 				Spec: corev1.PodSpec{
-					RestartPolicy: corev1.RestartPolicyNever,
+					RestartPolicy:    corev1.RestartPolicyNever,
+					ImagePullSecrets: pullSecretRefs(r.cfg.ImagePullSecrets),
 					Containers: []corev1.Container{{
 						Name:            "builder",
 						Image:           builderImage,
@@ -492,4 +497,20 @@ func jobName(buildID string) string    { return "build-" + buildID }
 // Secret and Job names.
 func newID() string {
 	return strings.ReplaceAll(uuid.NewString(), "-", "")
+}
+
+// pullSecretRefs turns a list of Secret names into the LocalObjectReference
+// slice the PodSpec expects. Returns nil (not empty slice) when the input is
+// empty so unmarshaled specs stay clean in dry-runs.
+func pullSecretRefs(names []string) []corev1.LocalObjectReference {
+	if len(names) == 0 {
+		return nil
+	}
+	out := make([]corev1.LocalObjectReference, 0, len(names))
+	for _, n := range names {
+		if n = strings.TrimSpace(n); n != "" {
+			out = append(out, corev1.LocalObjectReference{Name: n})
+		}
+	}
+	return out
 }

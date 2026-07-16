@@ -56,6 +56,11 @@ type BuilderConfig struct {
 	// functions namespace. When set, it's mounted into build Jobs so `spin
 	// registry push` can authenticate. Empty = anonymous registry.
 	AuthSecret string
+	// ImagePullSecrets are attached to every build Pod so the kubelet can
+	// pull the builder image itself from a private registry. Secrets must
+	// exist in the functions namespace. Env: SPINUP_BUILDER_IMAGE_PULL_SECRETS
+	// (comma-separated).
+	ImagePullSecrets []string
 }
 
 type FunctionsConfig struct {
@@ -149,12 +154,13 @@ func Load() (Config, error) {
 			Kubeconfig: env("SPINUP_KUBECONFIG", ""),
 		},
 		Builder: BuilderConfig{
-			GoImage:     env("SPINUP_BUILDER_IMAGE_GO", "spinup/builder-go:latest"),
-			JSImage:     env("SPINUP_BUILDER_IMAGE_JS", "spinup/builder-js:latest"),
-			TSImage:     env("SPINUP_BUILDER_IMAGE_TS", "spinup/builder-ts:latest"),
-			RustImage:   env("SPINUP_BUILDER_IMAGE_RUST", "spinup/builder-rust:latest"),
-			RegistryURL: env("SPINUP_OCI_REGISTRY_URL", "ttl.sh/spinup"),
-			AuthSecret:  env("SPINUP_OCI_AUTH_SECRET", ""),
+			GoImage:          env("SPINUP_BUILDER_IMAGE_GO", "spinup/builder-go:latest"),
+			JSImage:          env("SPINUP_BUILDER_IMAGE_JS", "spinup/builder-js:latest"),
+			TSImage:          env("SPINUP_BUILDER_IMAGE_TS", "spinup/builder-ts:latest"),
+			RustImage:        env("SPINUP_BUILDER_IMAGE_RUST", "spinup/builder-rust:latest"),
+			RegistryURL:      env("SPINUP_OCI_REGISTRY_URL", "ttl.sh/spinup"),
+			AuthSecret:       env("SPINUP_OCI_AUTH_SECRET", ""),
+			ImagePullSecrets: splitCSV(env("SPINUP_BUILDER_IMAGE_PULL_SECRETS", "")),
 		},
 		Metrics: MetricsConfig{
 			PrometheusURL: strings.TrimRight(env("SPINUP_PROMETHEUS_URL", ""), "/"),
