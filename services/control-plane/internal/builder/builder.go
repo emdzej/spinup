@@ -40,9 +40,9 @@ import (
 const (
 	labelManagedBy     = "app.kubernetes.io/managed-by"
 	labelManagedByVal  = "spinup"
-	labelBuildID       = "spinup.io/build-id"
-	labelApplicationID = "spinup.io/application-id"
-	labelAppName       = "spinup.io/application"
+	labelBuildID       = "spinup.emdzej.pl/build-id"
+	labelApplicationID = "spinup.emdzej.pl/application-id"
+	labelAppName       = "spinup.emdzej.pl/application"
 )
 
 type Config struct {

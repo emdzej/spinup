@@ -50,12 +50,17 @@ type deploymentVW struct {
 	ImageSizeBytes   *int64 `json:"imageSizeBytes,omitempty"`
 	Replicas         int32  `json:"replicas"`
 	ObservedReplicas int32  `json:"observedReplicas"`
+	UpdatedReplicas  int32  `json:"updatedReplicas"`
 	Ready            bool   `json:"ready"`
-	Message          string `json:"message,omitempty"`
-	Namespace        string `json:"namespace"`
-	ServiceName      string `json:"serviceName"`
-	InternalURL      string `json:"internalUrl"`
-	PublicURL        string `json:"publicUrl,omitempty"`
+	// Progressing is true during a rollout: old pod is still Ready but the
+	// new pod is not yet Available. The UI shows this distinctly from Ready
+	// so users don't invoke and get stale results.
+	Progressing bool   `json:"progressing"`
+	Message     string `json:"message,omitempty"`
+	Namespace   string `json:"namespace"`
+	ServiceName string `json:"serviceName"`
+	InternalURL string `json:"internalUrl"`
+	PublicURL   string `json:"publicUrl,omitempty"`
 }
 
 func (s *Server) listApplications(w http.ResponseWriter, r *http.Request) {
@@ -270,7 +275,9 @@ func (s *Server) buildDeploymentVW(app store.Application, st *spinapp.Status) *d
 		Image:            st.Image,
 		Replicas:         st.Replicas,
 		ObservedReplicas: st.ObservedReplicas,
+		UpdatedReplicas:  st.UpdatedReplicas,
 		Ready:            st.Ready,
+		Progressing:      st.Progressing,
 		Message:          st.Message,
 		Namespace:        s.functions.Namespace,
 		ServiceName:      app.Name,

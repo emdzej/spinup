@@ -182,6 +182,9 @@
 
   const status = $derived.by(() => {
     if (!app?.deployment) return { label: 'not deployed', cls: '' };
+    // "deploying" beats "ready" — an old pod may be Ready while a new build
+    // is still rolling; showing "ready" then would mask stale responses.
+    if (app.deployment.progressing) return { label: 'deploying', cls: 'wait' };
     if (app.deployment.ready) return { label: 'ready', cls: 'ok' };
     if (app.deployment.observedReplicas > 0) return { label: 'partial', cls: 'wait' };
     return { label: 'pending', cls: 'wait' };

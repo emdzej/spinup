@@ -89,7 +89,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	spinClient := spinapp.New(kc.Dynamic, cfg.Functions.Namespace)
+	spinClient := spinapp.New(kc.Dynamic, kc.Typed, cfg.Functions.Namespace)
 	// istio VirtualService client. Only used when PublicDomain + PublicGateway
 	// are set (production ingress); otherwise the client is still constructed
 	// but never called.

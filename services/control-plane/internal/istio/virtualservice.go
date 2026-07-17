@@ -36,9 +36,9 @@ const (
 const (
 	LabelManagedBy      = "app.kubernetes.io/managed-by"
 	LabelManagedByVal   = "spinup"
-	LabelApplication    = "spinup.io/application"
-	LabelApplicationID  = "spinup.io/application-id"
-	AnnotationEmittedBy = "spinup.io/emitted-by"
+	LabelApplication    = "spinup.emdzej.pl/application"
+	LabelApplicationID  = "spinup.emdzej.pl/application-id"
+	AnnotationEmittedBy = "spinup.emdzej.pl/emitted-by"
 	AnnotationEmittedByVal = "control-plane"
 )
 

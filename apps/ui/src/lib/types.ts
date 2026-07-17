@@ -20,7 +20,9 @@ export interface Deployment {
   imageSizeBytes?: number;
   replicas: number;
   observedReplicas: number;
+  updatedReplicas: number;
   ready: boolean;
+  progressing: boolean;
   message?: string;
   namespace: string;
   serviceName: string;

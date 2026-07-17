@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/kubernetes"
 )
 
 // GVR of core.spinkube.dev/v1alpha1 SpinApp.
@@ -32,13 +33,13 @@ const (
 	defaultExecutor    = "containerd-shim-spin"
 	labelManagedBy     = "app.kubernetes.io/managed-by"
 	labelManagedByVal  = "spinup"
-	labelAppName       = "spinup.io/application"
-	labelApplicationID = "spinup.io/application-id"
+	labelAppName       = "spinup.emdzej.pl/application"
+	labelApplicationID = "spinup.emdzej.pl/application-id"
 	fieldManager       = "spinup-control-plane"
-	annotationTenantID = "spinup.io/tenant"
+	annotationTenantID = "spinup.emdzej.pl/tenant"
 	// Standard CP marker so operators can grep for every resource the
-	// control-plane emits: `kubectl get all -A -o yaml | grep spinup.io/emitted-by`.
-	annotationEmittedBy    = "spinup.io/emitted-by"
+	// control-plane emits: `kubectl get all -A -o yaml | grep spinup.emdzej.pl/emitted-by`.
+	annotationEmittedBy    = "spinup.emdzej.pl/emitted-by"
 	annotationEmittedByVal = "control-plane"
 )
 
@@ -65,17 +66,29 @@ type Status struct {
 	Replicas         int32
 	Ready            bool
 	ObservedReplicas int32
-	Message          string
+	// UpdatedReplicas is the count of Pods matching the SpinApp's current
+	// spec.image. During a rolling update this stays below Replicas until
+	// the new pod is Ready; that's the signal for "deploying".
+	UpdatedReplicas int32
+	// Progressing is true when a rollout is in flight (old + new coexisting)
+	// or when the new spec hasn't finished scheduling. UI should distinguish
+	// this from Ready — an old pod being Ready doesn't mean the new build
+	// is live.
+	Progressing bool
+	Message     string
 }
 
-// Client wraps a namespaced dynamic client for the SpinApp resource.
+// Client wraps a namespaced dynamic client for the SpinApp resource. It also
+// holds a typed client so Get can read the shadow Deployment's rollout state
+// (SpinApp status alone doesn't expose updatedReplicas).
 type Client struct {
-	res dynamic.NamespaceableResourceInterface
-	ns  string
+	res  dynamic.NamespaceableResourceInterface
+	ns   string
+	kube kubernetes.Interface
 }
 
-func New(dyn dynamic.Interface, namespace string) *Client {
-	return &Client{res: dyn.Resource(GVR), ns: namespace}
+func New(dyn dynamic.Interface, kube kubernetes.Interface, namespace string) *Client {
+	return &Client{res: dyn.Resource(GVR), ns: namespace, kube: kube}
 }
 
 // Apply creates or updates the SpinApp using server-side apply. Idempotent.
@@ -133,6 +146,9 @@ func (c *Client) Apply(ctx context.Context, s Spec) (*Status, error) {
 }
 
 // Get returns the current SpinApp status, or (nil, nil) if not found.
+// Reads the shadow Deployment too (same name) to fill in updatedReplicas —
+// the signal we use to distinguish "old pod still serving" from "new pod is
+// Ready and traffic reflects the latest deploy".
 func (c *Client) Get(ctx context.Context, name string) (*Status, error) {
 	obj, err := c.res.Namespace(c.ns).Get(ctx, name, metav1.GetOptions{})
 	if err != nil {
@@ -141,7 +157,24 @@ func (c *Client) Get(ctx context.Context, name string) (*Status, error) {
 		}
 		return nil, err
 	}
-	return statusFrom(obj), nil
+	s := statusFrom(obj)
+	if c.kube != nil {
+		if dep, err := c.kube.AppsV1().Deployments(c.ns).Get(ctx, name, metav1.GetOptions{}); err == nil {
+			// SpinKube manages the Deployment; the "rolling" story lives there.
+			s.UpdatedReplicas = dep.Status.UpdatedReplicas
+			// Progressing when the rollout hasn't caught up: some pods run the
+			// old ReplicaSet or availability lags. Generation drift catches
+			// the instant right after Apply, before the controller reconciles.
+			desired := dep.Status.Replicas
+			s.Progressing = dep.Status.UpdatedReplicas < desired ||
+				dep.Status.AvailableReplicas < desired ||
+				dep.Status.ObservedGeneration < dep.Generation
+			// Refine Ready: not just "some pods are ready", but "the rollout
+			// is complete AND every new-spec pod is available".
+			s.Ready = !s.Progressing && desired > 0 && dep.Status.AvailableReplicas >= desired
+		}
+	}
+	return s, nil
 }
 
 // Delete removes the SpinApp. NotFound is treated as success.

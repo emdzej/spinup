@@ -9,6 +9,12 @@ rules:
   - apiGroups: ["core.spinkube.dev"]
     resources: ["spinapps"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Read the SpinKube-generated Deployment to derive rollout state
+  # (updatedReplicas / availableReplicas) — the SpinApp status alone can't
+  # distinguish "old pod still Ready" from "new build actually live".
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch"]
   # Builder Jobs and their supporting Secrets (source + optional registry auth).
   - apiGroups: ["batch"]
     resources: ["jobs"]
