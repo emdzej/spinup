@@ -119,6 +119,11 @@ oci:
     auth:
       htpasswdSecret: ""    # e.g. "zot-htpasswd"
       htpasswdKey: htpasswd
+      # htpasswd controls WHO can authenticate; accessControl controls WHAT
+      # they can do. Without `users`, the default zot policy denies pushes
+      # even for valid credentials — every listed user gets full read+write.
+      users:
+        - spinup
     # Note: Zot as configured here serves plain HTTP with anonymous access —
     # fine for dev/single-team. For production, run TLS + auth (cert-manager
     # cert + Zot auth config in the ConfigMap below).

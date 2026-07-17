@@ -20,6 +20,17 @@ data:
         "auth": {
           "htpasswd": { "path": "/etc/zot/htpasswd" },
           "failDelay": 1
+        },
+        "accessControl": {
+          "repositories": {
+            "**": {
+              "policies": [{
+                "users": {{ toJson .Values.oci.zot.auth.users }},
+                "actions": ["read", "create", "update", "delete"]
+              }],
+              "defaultPolicy": []
+            }
+          }
         }
         {{- end }}
       },
