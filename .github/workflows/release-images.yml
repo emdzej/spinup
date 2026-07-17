@@ -29,6 +29,9 @@ env:
 jobs:
   images:
     runs-on: ubuntu-24.04
+    # Guardrail: a single hung matrix leg used to hold the concurrency slot
+    # for over an hour and queue up every subsequent release. Cap it.
+    timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
