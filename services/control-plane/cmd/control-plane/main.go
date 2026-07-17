@@ -134,7 +134,7 @@ func main() {
 	uiHandler := webui.Handler(cfg.UI.StaticDir)
 	srv := &http.Server{
 		Addr:              cfg.HTTP.Addr,
-		Handler:           httpapi.New(logger, st, verifier, oauth, spinClient, deployer, buildRunner, metrics, metricsHandler, cfg.Functions, promClient, proxyClient, cfg.Worker, uiHandler),
+		Handler:           httpapi.New(logger, cfg.Version, st, verifier, oauth, spinClient, deployer, buildRunner, metrics, metricsHandler, cfg.Functions, promClient, proxyClient, cfg.Worker, uiHandler),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 

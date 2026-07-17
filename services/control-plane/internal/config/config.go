@@ -7,6 +7,7 @@ import (
 )
 
 type Config struct {
+	Version   string // build-time version string surfaced to the UI
 	HTTP      HTTPConfig
 	OIDC      OIDCConfig
 	Authz     AuthzConfig
@@ -131,6 +132,7 @@ type DBConfig struct {
 
 func Load() (Config, error) {
 	c := Config{
+		Version: env("SPINUP_VERSION", "dev"),
 		HTTP: HTTPConfig{
 			Addr: env("SPINUP_HTTP_ADDR", ":8080"),
 		},

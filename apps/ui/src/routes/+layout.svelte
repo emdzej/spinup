@@ -10,8 +10,16 @@
   let bootstrapped = $state(false);
   let signedOut = $state(false);
   let bootError = $state<string | null>(null);
+  let version = $state<{ version: string; repoUrl: string } | null>(null);
 
   onMount(async () => {
+    // Fire-and-forget — version is decorative; a slow /api/v1/version
+    // shouldn't hold up the login flow.
+    void fetch('/api/v1/version', { credentials: 'same-origin' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((v) => { version = v; })
+      .catch(() => {});
+
     const { status, me: got } = await fetchMe();
     if (status === 401) {
       // Not authenticated — render the splash so the user can start login.
@@ -93,9 +101,22 @@
   {@render splash(forbiddenBody)}
 {:else}
   <header class="flex items-baseline gap-8 px-8 py-4 border-b border-border">
-    <a href="/" class="text-fg no-underline text-xl tracking-tight">
-      <strong>Spin<span class="text-accent">UP</span></strong>
-    </a>
+    <div class="flex items-baseline gap-2">
+      <a href="/" class="text-fg no-underline text-xl tracking-tight">
+        <strong>Spin<span class="text-accent">UP</span></strong>
+      </a>
+      {#if version}
+        <a
+          href={version.repoUrl + (version.version && version.version !== 'dev' ? '/releases/tag/v' + version.version : '')}
+          target="_blank"
+          rel="noopener noreferrer"
+          class="text-xs text-fg-muted no-underline hover:text-fg font-mono"
+          title="View on GitHub"
+        >
+          v{version.version}
+        </a>
+      {/if}
+    </div>
     <nav class="flex gap-4">
       <a href="/" class="text-fg-muted no-underline hover:text-fg">Applications</a>
       <a href="/overview" class="text-fg-muted no-underline hover:text-fg">Overview</a>

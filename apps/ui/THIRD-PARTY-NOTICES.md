@@ -64,6 +64,10 @@ The following npm packages ship in the built bundle (or are dev-only tools) unde
 | `@sveltejs/kit` | — | MIT |
 | `@sveltejs/load-config` | — | MIT |
 | `@sveltejs/vite-plugin-svelte` | — | MIT |
+| `@tailwindcss/node` | — | MIT |
+| `@tailwindcss/oxide` | — | MIT |
+| `@tailwindcss/oxide-darwin-arm64` | — | MIT |
+| `@tailwindcss/vite` | — | MIT |
 | `@types/cookie` | — | MIT |
 | `@types/d3` | — | MIT |
 | `@types/d3-array` | — | MIT |
@@ -189,6 +193,7 @@ The following npm packages ship in the built bundle (or are dev-only tools) unde
 | `devlop` | — | MIT |
 | `dompurify` | — | (MPL-2.0 OR Apache-2.0) |
 | `emoji-regex-xs` | — | MIT |
+| `enhanced-resolve` | — | MIT |
 | `entities` | — | BSD-2-Clause |
 | `es-toolkit` | — | MIT |
 | `esbuild` | — | MIT |
@@ -198,6 +203,7 @@ The following npm packages ship in the built bundle (or are dev-only tools) unde
 | `fdir` | — | MIT |
 | `focus-trap` | — | MIT |
 | `fsevents` | — | MIT |
+| `graceful-fs` | — | ISC |
 | `hachure-fill` | — | MIT |
 | `hast-util-to-html` | — | MIT |
 | `hast-util-whitespace` | — | MIT |
@@ -208,6 +214,7 @@ The following npm packages ship in the built bundle (or are dev-only tools) unde
 | `internmap` | — | ISC |
 | `is-reference` | — | MIT |
 | `is-what` | — | MIT |
+| `jiti` | — | MIT |
 | `katex` | — | MIT |
 | `khroma` | — | Unknown |
 | `kleur` | — | MIT |
@@ -270,6 +277,8 @@ The following npm packages ship in the built bundle (or are dev-only tools) unde
 | `svelte` | — | MIT |
 | `svelte-check` | — | MIT |
 | `tabbable` | — | MIT |
+| `tailwindcss` | — | MIT |
+| `tapable` | — | MIT |
 | `tinyexec` | — | MIT |
 | `tinyglobby` | — | MIT |
 | `totalist` | — | MIT |

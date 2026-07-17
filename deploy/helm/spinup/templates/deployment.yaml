@@ -38,6 +38,8 @@ spec:
           env:
             - name: SPINUP_HTTP_ADDR
               value: ":8080"
+            - name: SPINUP_VERSION
+              value: {{ .Chart.AppVersion | quote }}
             - name: SPINUP_OIDC_ISSUER_URL
               value: {{ required "oidc.issuerUrl is required" .Values.oidc.issuerUrl | quote }}
             - name: SPINUP_OIDC_CLIENT_ID

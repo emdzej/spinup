@@ -18,6 +18,7 @@ import (
 
 type Server struct {
 	logger    *slog.Logger
+	version   string
 	store     store.Store
 	verifier  *auth.Verifier
 	spin      *spinapp.Client
@@ -30,15 +31,16 @@ type Server struct {
 	worker    workerRuntime
 }
 
-func New(logger *slog.Logger, st store.Store, v *auth.Verifier, oa *auth.OAuth, spin *spinapp.Client, dep *deploy.Deployer, b *builder.Runner, m *telemetry.Metrics, metricsHandler http.Handler, fns config.FunctionsConfig, prom *promql.Client, prx *proxy.Client, wcfg config.WorkerConfig, uiHandler http.Handler) http.Handler {
+func New(logger *slog.Logger, version string, st store.Store, v *auth.Verifier, oa *auth.OAuth, spin *spinapp.Client, dep *deploy.Deployer, b *builder.Runner, m *telemetry.Metrics, metricsHandler http.Handler, fns config.FunctionsConfig, prom *promql.Client, prx *proxy.Client, wcfg config.WorkerConfig, uiHandler http.Handler) http.Handler {
 	s := &Server{
-		logger: logger, store: st, verifier: v, spin: spin, deployer: dep, builder: b, metrics: m,
+		logger: logger, version: version, store: st, verifier: v, spin: spin, deployer: dep, builder: b, metrics: m,
 		functions: fns, prom: prom, proxy: prx,
 		worker: workerRuntime{invokeURL: wcfg.URL, uiURL: wcfg.UIURL},
 	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.health)
+	mux.HandleFunc("GET /api/v1/version", s.versionInfo)
 	mux.Handle("GET /metrics", metricsHandler)
 
 	// OIDC browser flow: /auth/login, /auth/callback, /auth/logout, /auth/me.
@@ -95,6 +97,16 @@ func New(logger *slog.Logger, st store.Store, v *auth.Verifier, oa *auth.OAuth, 
 		mux.Handle("/", uiHandler)
 	}
 	return mux
+}
+
+// versionInfo returns the CP version and source repo. Unauthenticated so
+// the UI can render "SpinUP · v0.x" in the header before login. Cheap
+// enough to serve from any client.
+func (s *Server) versionInfo(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]string{
+		"version":   s.version,
+		"repoUrl":   "https://github.com/emdzej/spinup",
+	})
 }
 
 func (s *Server) health(w http.ResponseWriter, r *http.Request) {
