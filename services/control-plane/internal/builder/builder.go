@@ -31,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 
+	"github.com/emdzej/spinup/services/control-plane/internal/istio"
 	"github.com/emdzej/spinup/services/control-plane/internal/spinapp"
 	"github.com/emdzej/spinup/services/control-plane/internal/store"
 	"github.com/emdzej/spinup/services/control-plane/internal/telemetry"
@@ -66,7 +67,13 @@ type Config struct {
 	// builder auto-applies after a successful build. Kubelet uses these
 	// to pull the freshly-pushed function image.
 	FunctionsImagePullSecrets []string
-	Metrics                   *telemetry.Metrics
+	// VS + PublicDomain + PublicGateway mirror what the httpapi deploy
+	// handler carries. When all three are set, the auto-deploy path also
+	// emits a VirtualService for <app>.<publicDomain> alongside the SpinApp.
+	VS            *istio.Client
+	PublicDomain  string
+	PublicGateway string
+	Metrics       *telemetry.Metrics
 }
 
 // languageProfile pins per-language build wiring: which builder image runs the Job.
@@ -448,6 +455,21 @@ func (r *Runner) watch(ctx context.Context, buildID string, app store.Applicatio
 		_ = r.cfg.Store.UpdateBuildStatus(ctx, buildID, store.BuildFailed, "apply spinapp: "+err.Error(), &now)
 		r.recordFinish(ctx, "failed")
 		return
+	}
+	// Emit the public VirtualService alongside the SpinApp, matching what
+	// the httpapi /deploy handler does. Non-fatal — build/deploy already
+	// succeeded; missing VS just means no public route yet.
+	if r.cfg.VS != nil && r.cfg.PublicDomain != "" && r.cfg.PublicGateway != "" {
+		if err := r.cfg.VS.Apply(ctx, istio.Spec{
+			Name:            app.Name,
+			ApplicationID:   app.ID,
+			Host:            app.Name + "." + r.cfg.PublicDomain,
+			Gateway:         r.cfg.PublicGateway,
+			DestinationHost: app.Name,
+			DestinationPort: 80,
+		}); err != nil {
+			logger.Warn("apply virtualservice after build", "err", err)
+		}
 	}
 	_ = r.cfg.Store.UpdateBuildStatus(ctx, buildID, store.BuildSucceeded, "", &now)
 	if r.cfg.Metrics != nil {

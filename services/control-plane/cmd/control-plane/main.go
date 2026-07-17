@@ -111,6 +111,9 @@ func main() {
 		AuthSecret:                cfg.Builder.AuthSecret,
 		ImagePullSecrets:          cfg.Builder.ImagePullSecrets,
 		FunctionsImagePullSecrets: cfg.Functions.ImagePullSecrets,
+		VS:                        vsClient,
+		PublicDomain:              cfg.Functions.PublicDomain,
+		PublicGateway:             cfg.Functions.PublicGateway,
 		Metrics:                   metrics,
 	})
 

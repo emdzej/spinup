@@ -41,10 +41,29 @@ registry="${IMAGE_REF%%/*}"
 name_tag="${IMAGE_REF#*/}"
 name="${name_tag%:*}"
 tag="${name_tag##*:}"
-size=$(curl -fsSL \
+
+# Pull basic auth for `$registry` from the mounted docker config, if present.
+# Registries that don't require auth (older Zot mode, ttl.sh, GHCR public) still
+# work — auth_arg simply stays empty.
+auth_arg=""
+if [ -f /root/.docker/config.json ]; then
+  auth=$(jq -r --arg reg "$registry" '.auths[$reg].auth // empty' /root/.docker/config.json 2>/dev/null)
+  if [ -n "$auth" ]; then
+    auth_arg="-u $(echo "$auth" | base64 -d)"
+  fi
+fi
+
+# HTTPS by default (all real registries speak it). Fall back to HTTP if the
+# HTTPS probe fails so cluster-internal HTTP registries keep working in dev.
+scheme="https"
+if ! curl -fsSLI $auth_arg "https://${registry}/v2/" >/dev/null 2>&1; then
+  scheme="http"
+fi
+
+size=$(curl -fsSL $auth_arg \
   -H 'Accept: application/vnd.oci.image.manifest.v1+json' \
   -H 'Accept: application/vnd.docker.distribution.manifest.v2+json' \
-  "http://${registry}/v2/${name}/manifests/${tag}" \
+  "${scheme}://${registry}/v2/${name}/manifests/${tag}" \
   | jq '((.config.size // 0) + ([.layers[]?.size // 0] | add // 0))')
 if [ -n "$size" ] && [ "$size" != "null" ]; then
   echo "SPINUP_IMAGE_SIZE_BYTES=$size"
