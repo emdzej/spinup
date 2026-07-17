@@ -42,6 +42,14 @@ RUN spin new -t http-js --accept-defaults scaffold \
     && cd scaffold && npm install \
     && ls -la
 
+# Minify + drop sourcemaps in the scaffold's esbuild step. See the TS
+# Dockerfile for why (containerd RunContainer deadline vs wasmtime AOT
+# compile time on multi-MB WASMs).
+RUN sed -i \
+    -e "s/sourcemap: true/sourcemap: false/" \
+    -e "s/minify: false/minify: true/" \
+    /scaffold/build.mjs
+
 COPY entrypoint.sh /usr/local/bin/spinup-build
 RUN chmod +x /usr/local/bin/spinup-build
 

@@ -25,6 +25,18 @@ WORKDIR /
 RUN spin new -t http-ts --accept-defaults scaffold \
     && cd scaffold && npm install
 
+# Patch the scaffold's build to minify and drop sourcemaps. Default template
+# writes ~12 MB WASMs (with sourcemaps + no minify); on shim-spin-v2 the
+# per-container startup budget (containerd RunContainer deadline) is ~20 s,
+# and wasmtime AOT-compiling multiple 12 MB modules exceeds that — pods
+# crashloop with "context deadline exceeded" before ever running our code.
+# After this patch WASMs come out around 3–5 MB and start well inside the
+# budget.
+RUN sed -i \
+    -e "s/sourcemap: true/sourcemap: false/" \
+    -e "s/minify: false/minify: true/" \
+    /scaffold/build.mjs
+
 COPY entrypoint.sh /usr/local/bin/spinup-build
 RUN chmod +x /usr/local/bin/spinup-build
 
