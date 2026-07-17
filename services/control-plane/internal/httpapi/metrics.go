@@ -3,6 +3,7 @@ package httpapi
 import (
 	"fmt"
 	"net/http"
+	"regexp"
 	"time"
 
 	"github.com/emdzej/spinup/services/control-plane/internal/promql"
@@ -45,19 +46,19 @@ func (s *Server) getApplicationMetrics(w http.ResponseWriter, r *http.Request) {
 	start := end.Add(-rng)
 
 	ns := s.functions.Namespace
-	joinFilter := fmt.Sprintf(
-		`kube_pod_labels{namespace=%q, label_core_spinkube_dev_app_name=%q}`,
-		ns, app.Name,
-	)
+	// Pod-name match is enough — SpinKube names Pods "<spinapp>-<hash>-<rand>"
+	// and the container inside is named after the SpinApp. That gives us a
+	// stable filter without depending on kube-state-metrics being deployed.
+	podRe := "^" + regexp.QuoteMeta(app.Name) + "-.*"
 	// 5m rate window handles typical cAdvisor scrape gaps and pod restarts
 	// more gracefully than 1m without over-smoothing on a 15m+ view.
 	cpuQ := fmt.Sprintf(
-		`sum(rate(container_cpu_usage_seconds_total{namespace=%q, container!="", container!="POD"}[5m]) * on(namespace, pod) group_left %s)`,
-		ns, joinFilter,
+		`sum(rate(container_cpu_usage_seconds_total{namespace=%q, pod=~%q, container=%q}[5m]))`,
+		ns, podRe, app.Name,
 	)
 	memQ := fmt.Sprintf(
-		`sum(container_memory_working_set_bytes{namespace=%q, container!="", container!="POD"} * on(namespace, pod) group_left %s)`,
-		ns, joinFilter,
+		`sum(container_memory_working_set_bytes{namespace=%q, pod=~%q, container=%q})`,
+		ns, podRe, app.Name,
 	)
 
 	cpu, err := s.prom.QueryRange(r.Context(), cpuQ, start, end, step)
@@ -104,22 +105,26 @@ func (s *Server) getFunctionMetrics(w http.ResponseWriter, r *http.Request) {
 	end := time.Now()
 	start := end.Add(-rng)
 
-	// Filter to server-kind spans (one per HTTP request; the internal
-	// component-execution span would double-count). The rate window is
-	// deliberately shorter than the CPU/memory panel because span-derived
-	// metrics arrive as counters at the collector's flush interval.
-	route := fn.Route
+	// Query the SpinKube shim's own `spin_request_count` counter (originally
+	// `spin.request_count` in OTLP; Vector normalizes dots to underscores
+	// before shipping to VictoriaMetrics). Filter by component_id — each
+	// function is one Spin component, and the component's id matches its
+	// SpinUP name.
+	//
+	// p95 latency requires a `_bucket` histogram from the shim, which the
+	// current Spin release doesn't emit; leaving that series empty until
+	// Spin ships the duration histogram. errorRate keys off HTTP status.
+	fnID := fn.Name
 	reqQ := fmt.Sprintf(
-		`sum(rate(traces_span_metrics_calls_total{span_kind="SPAN_KIND_SERVER",http_route=%q}[2m]))`,
-		route,
+		`sum(rate(spin_request_count{spin_component_id=%q}[2m]))`,
+		fnID,
 	)
-	p95Q := fmt.Sprintf(
-		`histogram_quantile(0.95, sum by (le) (rate(traces_span_metrics_duration_milliseconds_bucket{span_kind="SPAN_KIND_SERVER",http_route=%q}[2m])))`,
-		route,
-	)
+	// Placeholder that intentionally returns no series. Kept as an explicit
+	// query so the UI still labels the panel; empty result renders as "no data".
+	p95Q := fmt.Sprintf(`spin_request_duration_ms_bucket{spin_component_id=%q,le="+Inf"} * 0`, fnID)
 	errQ := fmt.Sprintf(
-		`sum(rate(traces_span_metrics_calls_total{span_kind="SPAN_KIND_SERVER",http_route=%q,http_response_status_code=~"5.."}[2m]))`,
-		route,
+		`sum(rate(spin_request_count{spin_component_id=%q,http_response_status_code=~"5.."}[2m]))`,
+		fnID,
 	)
 
 	reqs, err := s.prom.QueryRange(r.Context(), reqQ, start, end, step)
