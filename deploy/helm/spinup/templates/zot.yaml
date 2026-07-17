@@ -76,11 +76,14 @@ spec:
           ports:
             - name: http
               containerPort: {{ .Values.oci.zot.service.port }}
+          # /v2/ requires auth when htpasswd is enabled, so an anonymous
+          # HTTP probe would always 401. TCP is enough — the port isn't
+          # open until Zot has finished its own startup.
           readinessProbe:
-            httpGet: { path: /v2/, port: http }
+            tcpSocket: { port: http }
             periodSeconds: 10
           livenessProbe:
-            httpGet: { path: /v2/, port: http }
+            tcpSocket: { port: http }
             periodSeconds: 30
           resources:
             {{- toYaml .Values.oci.zot.resources | nindent 12 }}
