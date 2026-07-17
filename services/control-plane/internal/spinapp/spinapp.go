@@ -51,6 +51,10 @@ type Spec struct {
 	Image         string
 	Replicas      int32
 	Executor      string // optional; defaults to "containerd-shim-spin"
+	// ImagePullSecrets are set on the resulting Pod spec so kubelet can pull
+	// the image from a private registry. Secrets must live in the same
+	// namespace as the SpinApp.
+	ImagePullSecrets []string
 }
 
 // Status is the caller-visible read model.
@@ -95,11 +99,21 @@ func (c *Client) Apply(ctx context.Context, s Spec) (*Status, error) {
 				annotationEmittedBy: annotationEmittedByVal,
 			},
 		},
-		"spec": map[string]any{
-			"image":    s.Image,
-			"executor": s.Executor,
-			"replicas": s.Replicas,
-		},
+		"spec": func() map[string]any {
+			spec := map[string]any{
+				"image":    s.Image,
+				"executor": s.Executor,
+				"replicas": s.Replicas,
+			}
+			if len(s.ImagePullSecrets) > 0 {
+				refs := make([]any, 0, len(s.ImagePullSecrets))
+				for _, n := range s.ImagePullSecrets {
+					refs = append(refs, map[string]any{"name": n})
+				}
+				spec["imagePullSecrets"] = refs
+			}
+			return spec
+		}(),
 	}}
 	data, err := obj.MarshalJSON()
 	if err != nil {

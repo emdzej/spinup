@@ -79,6 +79,11 @@ type FunctionsConfig struct {
 	// per-function VirtualServices bind to (must serve the wildcard host).
 	// Ignored when PublicDomain is empty.
 	PublicGateway string
+	// ImagePullSecrets are stamped onto every SpinApp CR (spec.imagePullSecrets)
+	// so the kubelet can pull function images from a private registry. Secrets
+	// must exist in Namespace. Env: SPINUP_FUNCTIONS_IMAGE_PULL_SECRETS
+	// (comma-separated).
+	ImagePullSecrets []string
 }
 
 type WorkerConfig struct {
@@ -145,10 +150,11 @@ func Load() (Config, error) {
 			DSN:    env("SPINUP_DB_DSN", "spinup.db"),
 		},
 		Functions: FunctionsConfig{
-			Namespace:     env("SPINUP_FUNCTIONS_NAMESPACE", "spinup-functions"),
-			PublicBaseURL: strings.TrimRight(env("SPINUP_PUBLIC_BASE_URL", ""), "/"),
-			PublicDomain:  strings.TrimSpace(env("SPINUP_FUNCTIONS_PUBLIC_DOMAIN", "")),
-			PublicGateway: strings.TrimSpace(env("SPINUP_FUNCTIONS_PUBLIC_GATEWAY", "")),
+			Namespace:        env("SPINUP_FUNCTIONS_NAMESPACE", "spinup-functions"),
+			PublicBaseURL:    strings.TrimRight(env("SPINUP_PUBLIC_BASE_URL", ""), "/"),
+			PublicDomain:     strings.TrimSpace(env("SPINUP_FUNCTIONS_PUBLIC_DOMAIN", "")),
+			PublicGateway:    strings.TrimSpace(env("SPINUP_FUNCTIONS_PUBLIC_GATEWAY", "")),
+			ImagePullSecrets: splitCSV(env("SPINUP_FUNCTIONS_IMAGE_PULL_SECRETS", "")),
 		},
 		K8s: K8sConfig{
 			Kubeconfig: env("SPINUP_KUBECONFIG", ""),

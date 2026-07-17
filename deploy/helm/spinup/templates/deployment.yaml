@@ -76,6 +76,10 @@ spec:
             - name: SPINUP_FUNCTIONS_PUBLIC_GATEWAY
               value: {{ . | quote }}
             {{- end }}
+            {{- if .Values.functions.imagePullSecrets }}
+            - name: SPINUP_FUNCTIONS_IMAGE_PULL_SECRETS
+              value: "{{- range $i, $s := .Values.functions.imagePullSecrets }}{{ if $i }},{{ end }}{{ $s.name }}{{- end }}"
+            {{- end }}
             - name: SPINUP_BUILDER_IMAGE_GO
               value: {{ .Values.builder.images.go | quote }}
             - name: SPINUP_BUILDER_IMAGE_JS

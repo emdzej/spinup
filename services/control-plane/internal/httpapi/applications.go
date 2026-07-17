@@ -259,11 +259,12 @@ func (s *Server) deployApplication(w http.ResponseWriter, r *http.Request) {
 		in.Replicas = 1
 	}
 	st, err := s.spin.Apply(r.Context(), spinapp.Spec{
-		Name:          app.Name,
-		ApplicationID: app.ID,
-		TenantID:      app.TenantID,
-		Image:         in.Image,
-		Replicas:      in.Replicas,
+		Name:             app.Name,
+		ApplicationID:    app.ID,
+		TenantID:         app.TenantID,
+		Image:            in.Image,
+		Replicas:         in.Replicas,
+		ImagePullSecrets: s.functions.ImagePullSecrets,
 	})
 	if err != nil {
 		s.logger.Error("apply spinapp", "err", err, "name", app.Name)

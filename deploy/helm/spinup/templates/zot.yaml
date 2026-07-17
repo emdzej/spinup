@@ -12,7 +12,17 @@ data:
     {
       "distSpecVersion": "1.1.0",
       "storage": { "rootDirectory": "/var/lib/zot" },
-      "http": { "address": "0.0.0.0", "port": "{{ .Values.oci.zot.service.port }}" },
+      "http": {
+        "address": "0.0.0.0",
+        "port": "{{ .Values.oci.zot.service.port }}"
+        {{- if .Values.oci.zot.auth.htpasswdSecret -}}
+        ,
+        "auth": {
+          "htpasswd": { "path": "/etc/zot/htpasswd" },
+          "failDelay": 1
+        }
+        {{- end }}
+      },
       "log": { "level": "info" }
     }
 ---
@@ -76,9 +86,16 @@ spec:
             {{- toYaml .Values.oci.zot.resources | nindent 12 }}
           volumeMounts:
             - name: config
-              mountPath: /etc/zot
+              mountPath: /etc/zot/config.json
+              subPath: config.json
             - name: data
               mountPath: /var/lib/zot
+            {{- if .Values.oci.zot.auth.htpasswdSecret }}
+            - name: htpasswd
+              mountPath: /etc/zot/htpasswd
+              subPath: {{ .Values.oci.zot.auth.htpasswdKey | default "htpasswd" }}
+              readOnly: true
+            {{- end }}
       volumes:
         - name: config
           configMap:
@@ -90,6 +107,11 @@ spec:
           {{- else }}
           emptyDir: {}
           {{- end }}
+        {{- if .Values.oci.zot.auth.htpasswdSecret }}
+        - name: htpasswd
+          secret:
+            secretName: {{ .Values.oci.zot.auth.htpasswdSecret }}
+        {{- end }}
 ---
 apiVersion: v1
 kind: Service

@@ -7,6 +7,10 @@ dnsName: spinup.example.com
 functions:
   publicDomain: ""     # e.g. "spinup.example.com"
   publicGateway: ""    # "<namespace>/<gateway-name>", e.g. "spinup/spinup-gateway"
+  # Attached to every SpinApp CR (spec.imagePullSecrets) so the kubelet can
+  # pull the built function image from a private registry. Secrets must live
+  # in the functions namespace. Empty = public/anonymous pull.
+  imagePullSecrets: []
 
 # Namespace where SpinApp resources for user functions are created.
 # The chart creates it and grants the control-plane SA CRUD on spinapps there.
@@ -107,6 +111,14 @@ oci:
         memory: 128Mi
       limits:
         memory: 512Mi
+    # Authentication. When `htpasswdSecret` is set the chart mounts the given
+    # Secret at /etc/zot/htpasswd and enables Zot's htpasswd auth backend.
+    # Create the Secret out-of-band, e.g.:
+    #   htpasswd -Bbn spinup <password> > /tmp/h && \
+    #   kubectl create secret generic zot-htpasswd -n spinup --from-file=htpasswd=/tmp/h
+    auth:
+      htpasswdSecret: ""    # e.g. "zot-htpasswd"
+      htpasswdKey: htpasswd
     # Note: Zot as configured here serves plain HTTP with anonymous access —
     # fine for dev/single-team. For production, run TLS + auth (cert-manager
     # cert + Zot auth config in the ConfigMap below).
