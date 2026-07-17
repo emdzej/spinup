@@ -84,9 +84,12 @@ func (s *Server) listApplications(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, out)
 }
 
-// createApplication auto-creates one Function inside the new App with the
-// same name and route "/...". Multi-function apps come from POSTing to the
-// nested functions endpoint after the app exists.
+// createApplication auto-creates one starter Function named "default" so
+// the user has something to edit right away. The name is intentionally NOT
+// the application's name — those are different things (an app can hold many
+// functions, and renaming the app shouldn't drag a mismatched function name
+// along). Multi-function apps come from POSTing to the nested functions
+// endpoint after the app exists.
 func (s *Server) createApplication(w http.ResponseWriter, r *http.Request) {
 	if !authed(r) {
 		http.Error(w, "unauthenticated", http.StatusUnauthorized)
@@ -131,12 +134,13 @@ func (s *Server) createApplication(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "internal error (possibly duplicate name): "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	// Auto-create the first function.
+	// Auto-create the first function. Fixed name "default" so it's stable
+	// across app renames and doesn't shadow the app's identity.
 	fn := store.Function{
 		ID:            uuid.NewString(),
 		ApplicationID: app.ID,
-		Name:          app.Name,
-		Route:         "/...",
+		Name:          "default",
+		Route:         "/default/...",
 	}
 	if err := s.store.CreateFunction(r.Context(), fn); err != nil {
 		// Best-effort cleanup.
