@@ -30,7 +30,7 @@ cd /work
 spin build
 
 echo "=== stage: spin registry push $IMAGE_REF ==="
-spin registry push --insecure "$IMAGE_REF"
+spin registry push "$IMAGE_REF"
 
 echo "=== stage: measure image size ==="
 # Report the total on-wire size of the pushed OCI artifact so the control
