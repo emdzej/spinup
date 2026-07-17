@@ -30,7 +30,36 @@ export interface Deployment {
   publicUrl?: string;
 }
 
+export interface Variable {
+  name: string;
+  value: string;
+}
+
+export interface Resources {
+  cpuRequest?: string;
+  cpuLimit?: string;
+  memoryRequest?: string;
+  memoryLimit?: string;
+}
+
+export interface ApplicationConfig {
+  description?: string;
+  replicas: number;
+  variables: Variable[];
+  resources: Resources;
+}
+
+export interface UpdateApplicationInput {
+  description?: string;
+  replicas?: number;
+  variables?: Variable[];
+  resources?: Resources;
+}
+
 export interface ApplicationDetail extends ApplicationSummary {
+  replicas: number;
+  variables: Variable[];
+  resources: Resources;
   functions: FunctionSummary[];
   deployment?: Deployment;
 }

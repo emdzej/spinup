@@ -31,10 +31,65 @@
   let metricsRange = $state('15m');
   let metrics = $state<MetricsResponse | null>(null);
 
+  // Editable app-level config (replicas / variables / resources). Copied out
+  // of `app` on load, PATCHed on save, then merged back.
+  let cfg = $state<{
+    replicas: number;
+    variables: { name: string; value: string }[];
+    resources: {
+      cpuRequest: string; cpuLimit: string;
+      memoryRequest: string; memoryLimit: string;
+    };
+  } | null>(null);
+  let cfgSaving = $state(false);
+  let cfgErr = $state<string | null>(null);
+  let cfgOk = $state(false);
+  function syncCfgFromApp() {
+    if (!app) { cfg = null; return; }
+    cfg = {
+      replicas: app.replicas ?? 1,
+      variables: app.variables.map((v) => ({ name: v.name, value: v.value })),
+      resources: {
+        cpuRequest:    app.resources.cpuRequest    ?? '',
+        cpuLimit:      app.resources.cpuLimit      ?? '',
+        memoryRequest: app.resources.memoryRequest ?? '',
+        memoryLimit:   app.resources.memoryLimit   ?? '',
+      },
+    };
+  }
+  async function saveCfg() {
+    if (!cfg) return;
+    cfgSaving = true; cfgErr = null; cfgOk = false;
+    try {
+      const cleanVars = cfg.variables
+        .map((v) => ({ name: v.name.trim(), value: v.value }))
+        .filter((v) => v.name.length > 0);
+      const res = cfg.resources;
+      const anyRes = res.cpuRequest || res.cpuLimit || res.memoryRequest || res.memoryLimit;
+      app = await api.updateApplication(id, {
+        replicas: cfg.replicas,
+        variables: cleanVars,
+        resources: anyRes ? {
+          cpuRequest:    res.cpuRequest    || undefined,
+          cpuLimit:      res.cpuLimit      || undefined,
+          memoryRequest: res.memoryRequest || undefined,
+          memoryLimit:   res.memoryLimit   || undefined,
+        } : {},
+      });
+      syncCfgFromApp();
+      cfgOk = true;
+    } catch (e) {
+      cfgErr = (e as Error).message;
+    } finally {
+      cfgSaving = false;
+    }
+  }
+
   async function loadApp() {
     try {
       app = await api.getApplication(id);
       loadErr = null;
+      syncCfgFromApp();
     } catch (e) {
       loadErr = (e as Error).message;
     }
@@ -288,6 +343,92 @@
       {/each}
     </ul>
   </section>
+
+  {#if cfg && app.runtime !== 'workerpool'}
+    <section class="card">
+      <div class="flex justify-between items-baseline">
+        <h3>Configuration</h3>
+        <div class="flex items-center gap-2">
+          {#if cfgErr}<span class="text-danger text-sm">{cfgErr}</span>{/if}
+          {#if cfgOk}<span class="muted text-sm">Saved. Redeploys on next apply.</span>{/if}
+          <button class="button primary" onclick={saveCfg} disabled={cfgSaving}>
+            {cfgSaving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4 mt-3">
+        <label class="flex flex-col gap-1">
+          <span class="text-fg-muted text-xs uppercase tracking-wider">Replicas</span>
+          <input
+            type="number" min="0" max="20" step="1"
+            class="border border-border-strong rounded-md px-2 py-1"
+            bind:value={cfg.replicas}
+          />
+        </label>
+      </div>
+
+      <div class="mt-4">
+        <div class="flex items-baseline justify-between mb-1">
+          <span class="text-fg-muted text-xs uppercase tracking-wider">Variables</span>
+          <button
+            type="button"
+            class="text-xs text-fg-muted hover:text-fg underline underline-offset-2"
+            onclick={() => cfg && cfg.variables.push({ name: '', value: '' })}
+          >
+            + add
+          </button>
+        </div>
+        <p class="muted text-xs mb-2">
+          Accessible from every function via <code>@fermyon/spin-sdk</code>'s Variables API.
+        </p>
+        {#each cfg.variables as v, i}
+          <div class="flex gap-2 mb-1">
+            <input
+              placeholder="NAME"
+              class="flex-1 border border-border-strong rounded-md px-2 py-1 font-mono text-sm"
+              bind:value={v.name}
+            />
+            <input
+              placeholder="value"
+              class="flex-[2] border border-border-strong rounded-md px-2 py-1 font-mono text-sm"
+              bind:value={v.value}
+            />
+            <button
+              type="button"
+              class="button danger"
+              onclick={() => cfg && cfg.variables.splice(i, 1)}
+            >×</button>
+          </div>
+        {/each}
+      </div>
+
+      <div class="mt-4">
+        <span class="text-fg-muted text-xs uppercase tracking-wider">Resources</span>
+        <p class="muted text-xs mb-2">
+          K8s quantity strings (e.g. <code>100m</code>, <code>128Mi</code>). Blank = unset.
+        </p>
+        <div class="grid grid-cols-4 gap-2">
+          <label class="flex flex-col gap-1">
+            <span class="text-fg-muted text-xs">CPU request</span>
+            <input class="border border-border-strong rounded-md px-2 py-1 font-mono text-sm" placeholder="100m" bind:value={cfg.resources.cpuRequest} />
+          </label>
+          <label class="flex flex-col gap-1">
+            <span class="text-fg-muted text-xs">CPU limit</span>
+            <input class="border border-border-strong rounded-md px-2 py-1 font-mono text-sm" placeholder="500m" bind:value={cfg.resources.cpuLimit} />
+          </label>
+          <label class="flex flex-col gap-1">
+            <span class="text-fg-muted text-xs">Mem request</span>
+            <input class="border border-border-strong rounded-md px-2 py-1 font-mono text-sm" placeholder="128Mi" bind:value={cfg.resources.memoryRequest} />
+          </label>
+          <label class="flex flex-col gap-1">
+            <span class="text-fg-muted text-xs">Mem limit</span>
+            <input class="border border-border-strong rounded-md px-2 py-1 font-mono text-sm" placeholder="512Mi" bind:value={cfg.resources.memoryLimit} />
+          </label>
+        </div>
+      </div>
+    </section>
+  {/if}
 
   <section class="card">
     <div class="flex justify-between items-baseline">

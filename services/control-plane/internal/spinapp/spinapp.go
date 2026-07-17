@@ -56,6 +56,27 @@ type Spec struct {
 	// the image from a private registry. Secrets must live in the same
 	// namespace as the SpinApp.
 	ImagePullSecrets []string
+	// Variables become the SpinApp's spec.variables[] — key/value pairs
+	// surfaced to every function via the Spin variables SDK.
+	Variables []Variable
+	// Resources scopes the pod's CPU/memory. Empty fields are dropped so
+	// the CR doesn't render an empty requests/limits block that fails
+	// SpinKube's admission webhook.
+	Resources Resources
+}
+
+// Variable is a literal key/value passed to the SpinApp's variables[] array.
+type Variable struct {
+	Name  string
+	Value string
+}
+
+// Resources maps 1:1 to k8s ResourceRequirements. String quantities per k8s.
+type Resources struct {
+	CPURequest    string
+	CPULimit      string
+	MemoryRequest string
+	MemoryLimit   string
 }
 
 // Status is the caller-visible read model.
@@ -117,6 +138,16 @@ func (c *Client) Apply(ctx context.Context, s Spec) (*Status, error) {
 				"image":    s.Image,
 				"executor": s.Executor,
 				"replicas": s.Replicas,
+			}
+			if len(s.Variables) > 0 {
+				vs := make([]any, 0, len(s.Variables))
+				for _, v := range s.Variables {
+					vs = append(vs, map[string]any{"name": v.Name, "value": v.Value})
+				}
+				spec["variables"] = vs
+			}
+			if res := resourceRequirements(s.Resources); res != nil {
+				spec["resources"] = res
 			}
 			if len(s.ImagePullSecrets) > 0 {
 				refs := make([]any, 0, len(s.ImagePullSecrets))
@@ -218,3 +249,34 @@ func statusFrom(u *unstructured.Unstructured) *Status {
 }
 
 func ptrBool(b bool) *bool { return &b }
+
+// resourceRequirements renders a k8s-style requirements block, dropping empty
+// halves so we don't emit `{}` or `requests: {}` that SpinKube's webhook
+// would reject. Returns nil when nothing is set.
+func resourceRequirements(r Resources) map[string]any {
+	req := map[string]any{}
+	if r.CPURequest != "" {
+		req["cpu"] = r.CPURequest
+	}
+	if r.MemoryRequest != "" {
+		req["memory"] = r.MemoryRequest
+	}
+	lim := map[string]any{}
+	if r.CPULimit != "" {
+		lim["cpu"] = r.CPULimit
+	}
+	if r.MemoryLimit != "" {
+		lim["memory"] = r.MemoryLimit
+	}
+	if len(req) == 0 && len(lim) == 0 {
+		return nil
+	}
+	out := map[string]any{}
+	if len(req) > 0 {
+		out["requests"] = req
+	}
+	if len(lim) > 0 {
+		out["limits"] = lim
+	}
+	return out
+}

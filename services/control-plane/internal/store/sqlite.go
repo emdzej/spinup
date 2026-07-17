@@ -18,14 +18,17 @@ type sqliteStore struct {
 
 const sqliteSchema = `
 CREATE TABLE IF NOT EXISTS applications (
-	id          TEXT PRIMARY KEY,
-	tenant_id   TEXT NOT NULL,
-	name        TEXT NOT NULL,
-	language    TEXT NOT NULL,
-	runtime     TEXT NOT NULL DEFAULT 'spinkube',
-	description TEXT NOT NULL DEFAULT '',
-	created_at  DATETIME NOT NULL,
-	updated_at  DATETIME NOT NULL,
+	id             TEXT PRIMARY KEY,
+	tenant_id      TEXT NOT NULL,
+	name           TEXT NOT NULL,
+	language       TEXT NOT NULL,
+	runtime        TEXT NOT NULL DEFAULT 'spinkube',
+	description    TEXT NOT NULL DEFAULT '',
+	replicas       INTEGER NOT NULL DEFAULT 1,
+	variables_json TEXT NOT NULL DEFAULT '[]',
+	resources_json TEXT NOT NULL DEFAULT '{}',
+	created_at     DATETIME NOT NULL,
+	updated_at     DATETIME NOT NULL,
 	UNIQUE(tenant_id, name)
 );
 
@@ -77,11 +80,36 @@ func openSQLite(ctx context.Context, dsn string) (Store, error) {
 	if _, err := db.ExecContext(ctx, sqliteSchema); err != nil {
 		return nil, fmt.Errorf("apply sqlite schema: %w", err)
 	}
-	// Additive migration for pre-existing DBs. Ignore "duplicate column" errors.
-	if _, err := db.ExecContext(ctx, `ALTER TABLE builds ADD COLUMN image_size_bytes INTEGER`); err != nil && !strings.Contains(err.Error(), "duplicate column") {
-		return nil, fmt.Errorf("migrate builds.image_size_bytes: %w", err)
+	// Additive migrations for pre-existing DBs. Ignore "duplicate column".
+	for _, stmt := range []string{
+		`ALTER TABLE builds ADD COLUMN image_size_bytes INTEGER`,
+		`ALTER TABLE applications ADD COLUMN replicas INTEGER NOT NULL DEFAULT 1`,
+		`ALTER TABLE applications ADD COLUMN variables_json TEXT NOT NULL DEFAULT '[]'`,
+		`ALTER TABLE applications ADD COLUMN resources_json TEXT NOT NULL DEFAULT '{}'`,
+	} {
+		if _, err := db.ExecContext(ctx, stmt); err != nil && !strings.Contains(err.Error(), "duplicate column") {
+			return nil, fmt.Errorf("migrate %q: %w", stmt, err)
+		}
 	}
 	return &sqliteStore{db: db}, nil
+}
+
+// scanApplication reads the extended-column application row into a. Called by
+// List/Get/GetByName to keep JSON-decoding logic in one place.
+func scanApplication(row interface {
+	Scan(dest ...any) error
+}, a *Application) error {
+	var vJSON, rJSON string
+	if err := row.Scan(&a.ID, &a.TenantID, &a.Name, &a.Language, (*string)(&a.Runtime), &a.Description, &a.Replicas, &vJSON, &rJSON, &a.CreatedAt, &a.UpdatedAt); err != nil {
+		return err
+	}
+	if err := json.Unmarshal([]byte(vJSON), &a.Variables); err != nil {
+		return fmt.Errorf("decode variables: %w", err)
+	}
+	if err := json.Unmarshal([]byte(rJSON), &a.Resources); err != nil {
+		return fmt.Errorf("decode resources: %w", err)
+	}
+	return nil
 }
 
 func (s *sqliteStore) Ping(ctx context.Context) error { return s.db.PingContext(ctx) }
@@ -91,7 +119,7 @@ func (s *sqliteStore) Close() error                   { return s.db.Close() }
 
 func (s *sqliteStore) ListApplications(ctx context.Context, tenantID string) ([]Application, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, tenant_id, name, language, runtime, description, created_at, updated_at
+		SELECT id, tenant_id, name, language, runtime, description, replicas, variables_json, resources_json, created_at, updated_at
 		FROM applications WHERE tenant_id = ? ORDER BY name`, tenantID)
 	if err != nil {
 		return nil, err
@@ -100,7 +128,7 @@ func (s *sqliteStore) ListApplications(ctx context.Context, tenantID string) ([]
 	var out []Application
 	for rows.Next() {
 		var a Application
-		if err := rows.Scan(&a.ID, &a.TenantID, &a.Name, &a.Language, (*string)(&a.Runtime), &a.Description, &a.CreatedAt, &a.UpdatedAt); err != nil {
+		if err := scanApplication(rows, &a); err != nil {
 			return nil, err
 		}
 		out = append(out, a)
@@ -110,10 +138,9 @@ func (s *sqliteStore) ListApplications(ctx context.Context, tenantID string) ([]
 
 func (s *sqliteStore) GetApplication(ctx context.Context, tenantID, id string) (Application, error) {
 	var a Application
-	err := s.db.QueryRowContext(ctx, `
-		SELECT id, tenant_id, name, language, runtime, description, created_at, updated_at
-		FROM applications WHERE tenant_id = ? AND id = ?`, tenantID, id).
-		Scan(&a.ID, &a.TenantID, &a.Name, &a.Language, (*string)(&a.Runtime), &a.Description, &a.CreatedAt, &a.UpdatedAt)
+	err := scanApplication(s.db.QueryRowContext(ctx, `
+		SELECT id, tenant_id, name, language, runtime, description, replicas, variables_json, resources_json, created_at, updated_at
+		FROM applications WHERE tenant_id = ? AND id = ?`, tenantID, id), &a)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Application{}, ErrNotFound
 	}
@@ -122,10 +149,9 @@ func (s *sqliteStore) GetApplication(ctx context.Context, tenantID, id string) (
 
 func (s *sqliteStore) GetApplicationByName(ctx context.Context, tenantID, name string) (Application, error) {
 	var a Application
-	err := s.db.QueryRowContext(ctx, `
-		SELECT id, tenant_id, name, language, runtime, description, created_at, updated_at
-		FROM applications WHERE tenant_id = ? AND name = ?`, tenantID, name).
-		Scan(&a.ID, &a.TenantID, &a.Name, &a.Language, (*string)(&a.Runtime), &a.Description, &a.CreatedAt, &a.UpdatedAt)
+	err := scanApplication(s.db.QueryRowContext(ctx, `
+		SELECT id, tenant_id, name, language, runtime, description, replicas, variables_json, resources_json, created_at, updated_at
+		FROM applications WHERE tenant_id = ? AND name = ?`, tenantID, name), &a)
 	if errors.Is(err, sql.ErrNoRows) {
 		return Application{}, ErrNotFound
 	}
@@ -141,11 +167,49 @@ func (s *sqliteStore) CreateApplication(ctx context.Context, a Application) erro
 	if a.Runtime == "" {
 		a.Runtime = RuntimeSpinKube
 	}
-	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO applications (id, tenant_id, name, language, runtime, description, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		a.ID, a.TenantID, a.Name, a.Language, string(a.Runtime), a.Description, a.CreatedAt, a.UpdatedAt)
+	if a.Replicas <= 0 {
+		a.Replicas = 1
+	}
+	vJSON, err := json.Marshal(a.Variables)
+	if err != nil {
+		return fmt.Errorf("encode variables: %w", err)
+	}
+	rJSON, err := json.Marshal(a.Resources)
+	if err != nil {
+		return fmt.Errorf("encode resources: %w", err)
+	}
+	_, err = s.db.ExecContext(ctx, `
+		INSERT INTO applications (id, tenant_id, name, language, runtime, description, replicas, variables_json, resources_json, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		a.ID, a.TenantID, a.Name, a.Language, string(a.Runtime), a.Description, a.Replicas, string(vJSON), string(rJSON), a.CreatedAt, a.UpdatedAt)
 	return err
+}
+
+func (s *sqliteStore) UpdateApplicationConfig(ctx context.Context, tenantID, id string, desc string, replicas int32, variables []Variable, resources Resources) error {
+	if replicas <= 0 {
+		replicas = 1
+	}
+	vJSON, err := json.Marshal(variables)
+	if err != nil {
+		return fmt.Errorf("encode variables: %w", err)
+	}
+	rJSON, err := json.Marshal(resources)
+	if err != nil {
+		return fmt.Errorf("encode resources: %w", err)
+	}
+	res, err := s.db.ExecContext(ctx, `
+		UPDATE applications
+		SET description = ?, replicas = ?, variables_json = ?, resources_json = ?, updated_at = ?
+		WHERE tenant_id = ? AND id = ?`,
+		desc, replicas, string(vJSON), string(rJSON), time.Now().UTC(), tenantID, id)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return ErrNotFound
+	}
+	return nil
 }
 
 func (s *sqliteStore) DeleteApplication(ctx context.Context, tenantID, id string) error {

@@ -28,8 +28,30 @@ type applicationDTO struct {
 	Language    string        `json:"language"`
 	Runtime     string        `json:"runtime"`
 	Description string        `json:"description,omitempty"`
+	Replicas    int32         `json:"replicas"`
+	Variables   []variableDTO `json:"variables"`
+	Resources   resourcesDTO  `json:"resources"`
 	Functions   []functionDTO `json:"functions,omitempty"`
 	Deployment  *deploymentVW `json:"deployment,omitempty"`
+}
+
+type variableDTO struct {
+	Name  string `json:"name"`
+	Value string `json:"value"`
+}
+
+type resourcesDTO struct {
+	CPURequest    string `json:"cpuRequest,omitempty"`
+	CPULimit      string `json:"cpuLimit,omitempty"`
+	MemoryRequest string `json:"memoryRequest,omitempty"`
+	MemoryLimit   string `json:"memoryLimit,omitempty"`
+}
+
+type updateApplicationInput struct {
+	Description *string       `json:"description,omitempty"`
+	Replicas    *int32        `json:"replicas,omitempty"`
+	Variables   []variableDTO `json:"variables,omitempty"`
+	Resources   *resourcesDTO `json:"resources,omitempty"`
 }
 
 type functionDTO struct {
@@ -76,12 +98,36 @@ func (s *Server) listApplications(w http.ResponseWriter, r *http.Request) {
 	}
 	out := make([]applicationDTO, 0, len(apps))
 	for _, a := range apps {
-		out = append(out, applicationDTO{
-			ID: a.ID, Name: a.Name, Language: a.Language,
-			Runtime: string(a.Runtime), Description: a.Description,
-		})
+		out = append(out, toApplicationDTO(a, nil, nil))
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// toApplicationDTO renders the persistent app row into the API shape used by
+// the list / get / update responses. functions and deployment are optional —
+// callers pass nil when the endpoint doesn't need them (list view).
+func toApplicationDTO(a store.Application, functions []functionDTO, deployment *deploymentVW) applicationDTO {
+	vars := make([]variableDTO, 0, len(a.Variables))
+	for _, v := range a.Variables {
+		vars = append(vars, variableDTO{Name: v.Name, Value: v.Value})
+	}
+	return applicationDTO{
+		ID:          a.ID,
+		Name:        a.Name,
+		Language:    a.Language,
+		Runtime:     string(a.Runtime),
+		Description: a.Description,
+		Replicas:    a.Replicas,
+		Variables:   vars,
+		Resources: resourcesDTO{
+			CPURequest:    a.Resources.CPURequest,
+			CPULimit:      a.Resources.CPULimit,
+			MemoryRequest: a.Resources.MemoryRequest,
+			MemoryLimit:   a.Resources.MemoryLimit,
+		},
+		Functions:  functions,
+		Deployment: deployment,
+	}
 }
 
 // createApplication auto-creates one starter Function named "default" so
@@ -128,6 +174,7 @@ func (s *Server) createApplication(w http.ResponseWriter, r *http.Request) {
 		Language:    in.Language,
 		Runtime:     runtime,
 		Description: in.Description,
+		Replicas:    1,
 	}
 	if err := s.store.CreateApplication(r.Context(), app); err != nil {
 		s.logger.Error("create application", "err", err)
@@ -176,21 +223,18 @@ func (s *Server) getApplication(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "internal error", http.StatusInternalServerError)
 		return
 	}
-	out := applicationDTO{
-		ID: app.ID, Name: app.Name, Language: app.Language,
-		Runtime: string(app.Runtime), Description: app.Description,
-	}
+	fnDTOs := make([]functionDTO, 0, len(fns))
 	for _, f := range fns {
-		out.Functions = append(out.Functions, functionDTO{ID: f.ID, Name: f.Name, Route: f.Route})
+		fnDTOs = append(fnDTOs, functionDTO{ID: f.ID, Name: f.Name, Route: f.Route})
 	}
-
+	var dep *deploymentVW
 	if app.Runtime == store.RuntimeWorkerPool {
 		// Deployment status = latest successful build's image, if any.
 		builds, err := s.store.ListBuilds(r.Context(), app.ID, 20)
 		if err == nil {
 			for _, b := range builds {
 				if b.Status == store.BuildSucceeded {
-					out.Deployment = &deploymentVW{
+					dep = &deploymentVW{
 						Image: b.ImageRef, Replicas: 0, ObservedReplicas: 0,
 						Ready: true, Message: "served by worker pool on demand",
 						Namespace: "", ServiceName: app.Name,
@@ -204,10 +248,99 @@ func (s *Server) getApplication(w http.ResponseWriter, r *http.Request) {
 	} else if st, err := s.spin.Get(r.Context(), app.Name); err != nil {
 		s.logger.Warn("get spinapp", "err", err, "name", app.Name)
 	} else if st != nil {
-		out.Deployment = s.buildDeploymentVW(app, st)
+		dep = s.buildDeploymentVW(app, st)
 	}
-	writeJSON(w, http.StatusOK, out)
+	writeJSON(w, http.StatusOK, toApplicationDTO(app, fnDTOs, dep))
 }
+
+// updateApplication is the config-side PATCH: description, replicas, variables,
+// resources. All fields are optional; a nil pointer / omitted key leaves the
+// existing value alone. When the app has an active deployment we re-Apply
+// the SpinApp so replicas/vars/resources take effect immediately; if the
+// user changes only description we skip the reconcile.
+func (s *Server) updateApplication(w http.ResponseWriter, r *http.Request) {
+	if !authed(r) {
+		http.Error(w, "unauthenticated", http.StatusUnauthorized)
+		return
+	}
+	app, ok := s.loadApplication(w, r, r.PathValue("appId"))
+	if !ok {
+		return
+	}
+	var in updateApplicationInput
+	if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+		http.Error(w, "invalid json", http.StatusBadRequest)
+		return
+	}
+
+	desc := app.Description
+	if in.Description != nil {
+		desc = *in.Description
+	}
+	replicas := app.Replicas
+	if in.Replicas != nil {
+		replicas = *in.Replicas
+	}
+	if replicas < 0 {
+		http.Error(w, "replicas must be >= 0", http.StatusBadRequest)
+		return
+	}
+	// Variables: if the field is present in the request body, replace the
+	// whole list — variables are keyed by name so partial updates would be
+	// ambiguous. A caller that wants to clear all vars sends `"variables": []`.
+	vars := app.Variables
+	if in.Variables != nil {
+		vars = vars[:0]
+		for _, v := range in.Variables {
+			if !isVariableName(v.Name) {
+				http.Error(w, "variable name must start with a letter or '_' and contain only [A-Za-z0-9_]", http.StatusBadRequest)
+				return
+			}
+			vars = append(vars, store.Variable{Name: v.Name, Value: v.Value})
+		}
+	}
+	res := app.Resources
+	if in.Resources != nil {
+		res = store.Resources{
+			CPURequest:    in.Resources.CPURequest,
+			CPULimit:      in.Resources.CPULimit,
+			MemoryRequest: in.Resources.MemoryRequest,
+			MemoryLimit:   in.Resources.MemoryLimit,
+		}
+	}
+
+	if err := s.store.UpdateApplicationConfig(r.Context(), defaultTenant, app.ID, desc, replicas, vars, res); err != nil {
+		s.logger.Error("update application config", "err", err)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	app.Description, app.Replicas, app.Variables, app.Resources = desc, replicas, vars, res
+
+	// Reconcile with the cluster only if there's already a deployed SpinApp
+	// AND the change actually affects it (description-only PATCHes stay a
+	// no-op on the cluster).
+	if app.Runtime != store.RuntimeWorkerPool && (in.Replicas != nil || in.Variables != nil || in.Resources != nil) {
+		if st, err := s.spin.Get(r.Context(), app.Name); err == nil && st != nil && st.Image != "" {
+			if _, err := s.deployer.Deploy(r.Context(), deploy.Request{App: app, Image: st.Image}); err != nil {
+				s.logger.Warn("re-deploy after config update", "err", err, "name", app.Name)
+			}
+		}
+	}
+
+	fns, _ := s.store.ListFunctions(r.Context(), app.ID)
+	fnDTOs := make([]functionDTO, 0, len(fns))
+	for _, f := range fns {
+		fnDTOs = append(fnDTOs, functionDTO{ID: f.ID, Name: f.Name, Route: f.Route})
+	}
+	writeJSON(w, http.StatusOK, toApplicationDTO(app, fnDTOs, nil))
+}
+
+// isVariableName is a permissive check for `variables[].name`: letters, digits,
+// underscore, must start with a letter or underscore. Spin uses these as
+// identifiers inside components, matches what the SDK accepts.
+var _envVarName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
+func isVariableName(s string) bool { return _envVarName.MatchString(s) }
 
 func (s *Server) deleteApplication(w http.ResponseWriter, r *http.Request) {
 	if !authed(r) {

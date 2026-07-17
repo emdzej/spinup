@@ -54,6 +54,7 @@ func New(logger *slog.Logger, version string, st store.Store, v *auth.Verifier, 
 	api.HandleFunc("GET /api/v1/applications", s.listApplications)
 	api.HandleFunc("POST /api/v1/applications", s.createApplication)
 	api.HandleFunc("GET /api/v1/applications/{appId}", s.getApplication)
+	api.HandleFunc("PATCH /api/v1/applications/{appId}", s.updateApplication)
 	api.HandleFunc("DELETE /api/v1/applications/{appId}", s.deleteApplication)
 	api.HandleFunc("POST /api/v1/applications/{appId}/deploy", s.deployApplication)
 

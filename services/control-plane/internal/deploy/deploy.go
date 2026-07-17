@@ -17,10 +17,14 @@ import (
 	"github.com/emdzej/spinup/services/control-plane/internal/store"
 )
 
-// Request is the caller's desired state.
+// Request is the caller's desired state. Replicas / Variables / Resources
+// default to whatever the App row carries — callers can override to
+// short-circuit the DB (e.g. the /deploy handler bumping replicas without
+// persisting the change).
 type Request struct {
-	App      store.Application
-	Image    string
+	App   store.Application
+	Image string
+	// Replicas overrides App.Replicas when > 0.
 	Replicas int32
 }
 
@@ -53,13 +57,27 @@ func New(logger *slog.Logger, spin *spinapp.Client, vs *istio.Client, pullSecret
 // VirtualService. VS failures are logged but not returned — the app is
 // still up on its Service; the operator can retry ingress separately.
 func (d *Deployer) Deploy(ctx context.Context, req Request) (*spinapp.Status, error) {
+	replicas := req.Replicas
+	if replicas <= 0 {
+		replicas = req.App.Replicas
+	}
+	if replicas <= 0 {
+		replicas = 1
+	}
 	st, err := d.spin.Apply(ctx, spinapp.Spec{
 		Name:             req.App.Name,
 		ApplicationID:    req.App.ID,
 		TenantID:         req.App.TenantID,
 		Image:            req.Image,
-		Replicas:         req.Replicas,
+		Replicas:         replicas,
 		ImagePullSecrets: d.pullSecrets,
+		Variables:        toSpinappVariables(req.App.Variables),
+		Resources: spinapp.Resources{
+			CPURequest:    req.App.Resources.CPURequest,
+			CPULimit:      req.App.Resources.CPULimit,
+			MemoryRequest: req.App.Resources.MemoryRequest,
+			MemoryLimit:   req.App.Resources.MemoryLimit,
+		},
 	})
 	if err != nil {
 		return nil, err
@@ -77,6 +95,17 @@ func (d *Deployer) Deploy(ctx context.Context, req Request) (*spinapp.Status, er
 		}
 	}
 	return st, nil
+}
+
+func toSpinappVariables(in []store.Variable) []spinapp.Variable {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make([]spinapp.Variable, 0, len(in))
+	for _, v := range in {
+		out = append(out, spinapp.Variable{Name: v.Name, Value: v.Value})
+	}
+	return out
 }
 
 // Undeploy removes the SpinApp and its VS. SpinApp errors bubble; VS

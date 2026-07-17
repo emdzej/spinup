@@ -30,8 +30,36 @@ type Application struct {
 	Language    string // "go" | "js" | "ts" | "rust" — all functions in an app share this
 	Runtime     Runtime
 	Description string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	// Replicas is the desired pod count for the deployed SpinApp. 0 or 1 both
+	// mean single-replica; >1 requires the workload to be stateless (Spin
+	// functions are, by design).
+	Replicas int32
+	// Variables are Spin's per-app variables (accessible via the SDK's
+	// variables API from any function). V1 supports literal values only;
+	// Secret/ConfigMap sourcing is a natural follow-up.
+	Variables []Variable
+	// Resources scopes the deployed pod's CPU/memory requests + limits.
+	// Empty strings mean "don't set that field" (BestEffort QoS).
+	Resources Resources
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+// Variable is one entry in the SpinApp's spec.variables[]. Literal value only
+// for now — the CR also allows valueFrom (Secret / ConfigMap) but that's a
+// v2 feature.
+type Variable struct {
+	Name  string
+	Value string
+}
+
+// Resources maps 1:1 to k8s ResourceRequirements. Values are k8s quantity
+// strings ("100m", "128Mi"); empty = unset (BestEffort).
+type Resources struct {
+	CPURequest    string
+	CPULimit      string
+	MemoryRequest string
+	MemoryLimit   string
 }
 
 // Function is a component within an Application. Multiple functions share one
@@ -86,6 +114,9 @@ type Store interface {
 	GetApplication(ctx context.Context, tenantID, id string) (Application, error)
 	GetApplicationByName(ctx context.Context, tenantID, name string) (Application, error)
 	CreateApplication(ctx context.Context, a Application) error
+	// UpdateApplicationConfig updates the mutable app-level knobs: description,
+	// replicas, variables, resources. Name/language/runtime are immutable.
+	UpdateApplicationConfig(ctx context.Context, tenantID, id string, desc string, replicas int32, variables []Variable, resources Resources) error
 	DeleteApplication(ctx context.Context, tenantID, id string) error
 
 	// Functions (nested)

@@ -8,7 +8,8 @@ import type {
   InvokeRequest,
   InvokeResponse,
   MetricsResponse,
-  Source
+  Source,
+  UpdateApplicationInput
 } from './types';
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
@@ -39,6 +40,11 @@ export const api = {
       body: JSON.stringify(input)
     }),
   getApplication: (id: string) => req<ApplicationDetail>(appBase(id)),
+  updateApplication: (id: string, patch: UpdateApplicationInput) =>
+    req<ApplicationDetail>(appBase(id), {
+      method: 'PATCH',
+      body: JSON.stringify(patch)
+    }),
   deleteApplication: (id: string) => req<void>(appBase(id), { method: 'DELETE' }),
   deployApplication: (id: string, input: { image: string; replicas?: number }) =>
     req(appBase(id) + '/deploy', { method: 'POST', body: JSON.stringify(input) }),
