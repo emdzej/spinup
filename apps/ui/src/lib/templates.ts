@@ -36,7 +36,10 @@ func main() {}
 };
 
 const jsTemplate: Template = {
-  filename: 'index.js',
+  // Must live at src/index.js — the builder scaffold's esbuild entry point
+  // is ./src/index.{js,ts}; a bare index.{js,ts} is ignored and the scaffold's
+  // default hello-world gets componentized instead (silent 404s in the app).
+  filename: 'src/index.js',
   buildable: true,
   content: `// Spin uses the browser fetch-event API. The scaffold pre-installs
 // itty-router for routing convenience.
@@ -44,9 +47,10 @@ import { AutoRouter } from 'itty-router';
 
 const router = AutoRouter();
 
+// '*' matches any path — Spin passes the component-mount prefix through,
+// so router.get('/') would only match a request at exactly the mount root.
 router
-  .get('/', () => new Response('Hello from Spinup (JS)!', { headers: { 'content-type': 'text/plain' } }))
-  .get('/hello/:name', ({ name }) => \`Hello, \${name}!\`);
+  .get('*', () => new Response('Hello from Spinup (JS)!', { headers: { 'content-type': 'text/plain' } }));
 
 addEventListener('fetch', (event) => {
   event.respondWith(router.fetch(event.request));
@@ -55,15 +59,17 @@ addEventListener('fetch', (event) => {
 };
 
 const tsTemplate: Template = {
-  filename: 'index.ts',
+  // Must live at src/index.ts — see jsTemplate for the reason.
+  filename: 'src/index.ts',
   buildable: true,
   content: `import { AutoRouter } from 'itty-router';
 
 const router = AutoRouter();
 
+// '*' matches any path — Spin passes the component-mount prefix through,
+// so router.get('/') would only match a request at exactly the mount root.
 router
-  .get('/', () => new Response('Hello from Spinup (TS)!', { headers: { 'content-type': 'text/plain' } }))
-  .get('/hello/:name', ({ name }: { name: string }) => \`Hello, \${name}!\`);
+  .get('*', () => new Response('Hello from Spinup (TS)!', { headers: { 'content-type': 'text/plain' } }));
 
 //@ts-ignore
 addEventListener('fetch', (event: FetchEvent) => {

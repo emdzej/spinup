@@ -16,6 +16,19 @@ tar -xzf /source/source.tar.gz -C /work
 echo "=== stage: overlay scaffold into each function subdir ==="
 for fn_dir in /work/functions/*/; do
     [ -d "$fn_dir" ] || continue
+
+    # Backward-compat: the scaffold's esbuild entry point is ./src/index.{ts,js}.
+    # UIs that created functions with a bare index.{ts,js} at the root would
+    # otherwise be silently overridden by the scaffold's default hello-world.
+    # Move the user's entry into src/ before overlaying the scaffold.
+    for ext in ts tsx js mjs; do
+        if [ -f "$fn_dir/index.$ext" ] && [ ! -f "$fn_dir/src/index.$ext" ]; then
+            mkdir -p "$fn_dir/src"
+            mv "$fn_dir/index.$ext" "$fn_dir/src/index.$ext"
+            echo "  $fn_dir: moved index.$ext → src/index.$ext for scaffold layout"
+        fi
+    done
+
     # User files win; skip scaffold's spin.toml (root spin.toml is synthesized).
     tar --exclude=./node_modules --exclude=./spin.toml -C /scaffold -cf - . \
         | tar --skip-old-files -C "$fn_dir" -xf -
