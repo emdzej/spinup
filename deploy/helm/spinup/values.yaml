@@ -31,6 +31,13 @@ spinAppExecutor:
   installDefaultCACerts: true
 
 # OCI registry used by the builder to push and by SpinApps to pull.
+metrics:
+  # Prometheus-compatible HTTP API the CP queries for panels on the app +
+  # function pages (usage, RPS, latency, cAdvisor-style CPU/mem). Empty
+  # disables those endpoints.
+  #   e.g. "http://vmsingle.monitoring.svc.cluster.local:8428"
+  prometheusUrl: ""
+
 observability:
   # OTLP endpoint the SpinKube shim ships traces/metrics/logs to. When set,
   # it wins over the bundled collector (`otelCollector.enabled`). Use this

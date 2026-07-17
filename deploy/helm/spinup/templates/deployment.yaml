@@ -68,6 +68,10 @@ spec:
             {{- end }}
             - name: SPINUP_FUNCTIONS_NAMESPACE
               value: {{ .Values.functionsNamespace.name | quote }}
+            {{- with .Values.metrics.prometheusUrl }}
+            - name: SPINUP_PROMETHEUS_URL
+              value: {{ . | quote }}
+            {{- end }}
             {{- with .Values.functions.publicDomain }}
             - name: SPINUP_FUNCTIONS_PUBLIC_DOMAIN
               value: {{ . | quote }}
