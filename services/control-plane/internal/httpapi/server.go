@@ -9,6 +9,7 @@ import (
 	"github.com/emdzej/spinup/services/control-plane/internal/builder"
 	"github.com/emdzej/spinup/services/control-plane/internal/config"
 	"github.com/emdzej/spinup/services/control-plane/internal/deploy"
+	"github.com/emdzej/spinup/services/control-plane/internal/policy"
 	"github.com/emdzej/spinup/services/control-plane/internal/promql"
 	"github.com/emdzej/spinup/services/control-plane/internal/proxy"
 	"github.com/emdzej/spinup/services/control-plane/internal/spinapp"
@@ -17,30 +18,32 @@ import (
 )
 
 type Server struct {
-	logger    *slog.Logger
-	version   string
-	store     store.Store
-	verifier  *auth.Verifier
-	spin      *spinapp.Client
-	deployer  *deploy.Deployer
-	builder   *builder.Runner
-	metrics   *telemetry.Metrics
-	functions config.FunctionsConfig
-	prom      *promql.Client
-	proxy     *proxy.Client
-	worker    workerRuntime
+	logger         *slog.Logger
+	version        string
+	store          store.Store
+	verifier       *auth.Verifier
+	spin           *spinapp.Client
+	deployer       *deploy.Deployer
+	builder        *builder.Runner
+	metrics        *telemetry.Metrics
+	functions      config.FunctionsConfig
+	resourcePolicy policy.ResourcePolicy
+	prom           *promql.Client
+	proxy          *proxy.Client
+	worker         workerRuntime
 }
 
-func New(logger *slog.Logger, version string, st store.Store, v *auth.Verifier, oa *auth.OAuth, spin *spinapp.Client, dep *deploy.Deployer, b *builder.Runner, m *telemetry.Metrics, metricsHandler http.Handler, fns config.FunctionsConfig, prom *promql.Client, prx *proxy.Client, wcfg config.WorkerConfig, uiHandler http.Handler) http.Handler {
+func New(logger *slog.Logger, version string, st store.Store, v *auth.Verifier, oa *auth.OAuth, spin *spinapp.Client, dep *deploy.Deployer, b *builder.Runner, m *telemetry.Metrics, metricsHandler http.Handler, fns config.FunctionsConfig, rp policy.ResourcePolicy, prom *promql.Client, prx *proxy.Client, wcfg config.WorkerConfig, uiHandler http.Handler) http.Handler {
 	s := &Server{
 		logger: logger, version: version, store: st, verifier: v, spin: spin, deployer: dep, builder: b, metrics: m,
-		functions: fns, prom: prom, proxy: prx,
+		functions: fns, resourcePolicy: rp, prom: prom, proxy: prx,
 		worker: workerRuntime{invokeURL: wcfg.URL, uiURL: wcfg.UIURL},
 	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", s.health)
 	mux.HandleFunc("GET /api/v1/version", s.versionInfo)
+	mux.HandleFunc("GET /api/v1/policy", s.policyInfo)
 	mux.Handle("GET /metrics", metricsHandler)
 
 	// OIDC browser flow: /auth/login, /auth/callback, /auth/logout, /auth/me.
@@ -105,8 +108,27 @@ func New(logger *slog.Logger, version string, st store.Store, v *auth.Verifier, 
 // enough to serve from any client.
 func (s *Server) versionInfo(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{
-		"version":   s.version,
-		"repoUrl":   "https://github.com/emdzej/spinup",
+		"version": s.version,
+		"repoUrl": "https://github.com/emdzej/spinup",
+	})
+}
+
+// policyInfo returns the platform's resource policy (mode + per-field caps).
+// The UI reads this to disable inputs in "forced" mode and render "≤ X"
+// hints in "max" mode. Unauth so the UI can fetch it at bootstrap.
+func (s *Server) policyInfo(w http.ResponseWriter, r *http.Request) {
+	mode := string(s.resourcePolicy.Mode)
+	if mode == "" {
+		mode = string(policy.ModeOpen)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"resources": map[string]any{
+			"mode":          mode,
+			"cpuRequest":    s.resourcePolicy.CPU.Request,
+			"cpuLimit":      s.resourcePolicy.CPU.Limit,
+			"memoryRequest": s.resourcePolicy.Mem.Request,
+			"memoryLimit":   s.resourcePolicy.Mem.Limit,
+		},
 	})
 }
 

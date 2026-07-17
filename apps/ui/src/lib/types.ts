@@ -56,6 +56,20 @@ export interface UpdateApplicationInput {
   resources?: Resources;
 }
 
+export type ResourcePolicyMode = 'open' | 'max' | 'forced';
+
+export interface ResourcePolicy {
+  mode: ResourcePolicyMode;
+  cpuRequest?: string;
+  cpuLimit?: string;
+  memoryRequest?: string;
+  memoryLimit?: string;
+}
+
+export interface PlatformPolicy {
+  resources: ResourcePolicy;
+}
+
 export interface ApplicationDetail extends ApplicationSummary {
   replicas: number;
   variables: Variable[];

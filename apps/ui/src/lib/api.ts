@@ -8,6 +8,7 @@ import type {
   InvokeRequest,
   InvokeResponse,
   MetricsResponse,
+  PlatformPolicy,
   Source,
   UpdateApplicationInput
 } from './types';
@@ -46,6 +47,7 @@ export const api = {
       body: JSON.stringify(patch)
     }),
   deleteApplication: (id: string) => req<void>(appBase(id), { method: 'DELETE' }),
+  policy: () => req<PlatformPolicy>('/api/v1/policy'),
   deployApplication: (id: string, input: { image: string; replicas?: number }) =>
     req(appBase(id) + '/deploy', { method: 'POST', body: JSON.stringify(input) }),
 
@@ -84,7 +86,8 @@ export const api = {
   },
 
   // Builds (per app)
-  listBuilds: (appId: string) => req<Build[]>(appBase(appId) + '/builds'),
+  listBuilds: (appId: string, limit = 5) =>
+    req<Build[]>(appBase(appId) + `/builds?limit=${encodeURIComponent(limit)}`),
   startBuild: (appId: string) =>
     req<Build>(appBase(appId) + '/builds', { method: 'POST' }),
   getBuild: (appId: string, buildId: string) =>

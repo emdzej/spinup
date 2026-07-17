@@ -19,8 +19,11 @@ type Clients struct {
 
 // New builds both dynamic and typed clients, preferring in-cluster config and
 // falling back to a kubeconfig file (SPINUP_KUBECONFIG or default paths).
-func New(kubeconfig string) (*Clients, error) {
-	cfg, err := restConfig(kubeconfig)
+// When kubecontext is non-empty it overrides the kubeconfig's current-context
+// — useful for local dev where ~/.kube/config points at some other cluster
+// (rancher-desktop, kind, …) but we want to talk to tve.
+func New(kubeconfig, kubecontext string) (*Clients, error) {
+	cfg, err := restConfig(kubeconfig, kubecontext)
 	if err != nil {
 		return nil, err
 	}
@@ -35,7 +38,7 @@ func New(kubeconfig string) (*Clients, error) {
 	return &Clients{Config: cfg, Dynamic: dyn, Typed: typed}, nil
 }
 
-func restConfig(kubeconfig string) (*rest.Config, error) {
+func restConfig(kubeconfig, kubecontext string) (*rest.Config, error) {
 	if cfg, err := rest.InClusterConfig(); err == nil {
 		return cfg, nil
 	}
@@ -43,9 +46,13 @@ func restConfig(kubeconfig string) (*rest.Config, error) {
 	if kubeconfig != "" {
 		loader.ExplicitPath = kubeconfig
 	}
-	cfg, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loader, &clientcmd.ConfigOverrides{}).ClientConfig()
+	overrides := &clientcmd.ConfigOverrides{}
+	if kubecontext != "" {
+		overrides.CurrentContext = kubecontext
+	}
+	cfg, err := clientcmd.NewNonInteractiveDeferredLoadingClientConfig(loader, overrides).ClientConfig()
 	if err != nil {
-		return nil, fmt.Errorf("load kubeconfig: %w (SPINUP_KUBECONFIG=%q, KUBECONFIG=%q)", err, kubeconfig, os.Getenv("KUBECONFIG"))
+		return nil, fmt.Errorf("load kubeconfig: %w (SPINUP_KUBECONFIG=%q, KUBECONFIG=%q, SPINUP_KUBECONTEXT=%q)", err, kubeconfig, os.Getenv("KUBECONFIG"), kubecontext)
 	}
 	return cfg, nil
 }

@@ -74,6 +74,26 @@ spec:
             - name: SPINUP_PROMETHEUS_URL
               value: {{ . | quote }}
             {{- end }}
+            {{- with .Values.functions.resources.policy }}
+            - name: SPINUP_RESOURCES_POLICY
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.functions.resources.cpuRequest }}
+            - name: SPINUP_RESOURCES_CPU_REQUEST
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.functions.resources.cpuLimit }}
+            - name: SPINUP_RESOURCES_CPU_LIMIT
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.functions.resources.memoryRequest }}
+            - name: SPINUP_RESOURCES_MEMORY_REQUEST
+              value: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.functions.resources.memoryLimit }}
+            - name: SPINUP_RESOURCES_MEMORY_LIMIT
+              value: {{ . | quote }}
+            {{- end }}
             {{- with .Values.functions.publicDomain }}
             - name: SPINUP_FUNCTIONS_PUBLIC_DOMAIN
               value: {{ . | quote }}

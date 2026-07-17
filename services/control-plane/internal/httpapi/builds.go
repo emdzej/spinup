@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -83,7 +84,8 @@ func (s *Server) putSource(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, sourceDTO{Files: in.Files})
 }
 
-// GET /api/v1/applications/{appId}/builds
+// GET /api/v1/applications/{appId}/builds?limit=N
+// Default limit is 5 (matches the UI's initial page). Clamped to [1,100].
 func (s *Server) listBuilds(w http.ResponseWriter, r *http.Request) {
 	if !authed(r) {
 		http.Error(w, "unauthenticated", http.StatusUnauthorized)
@@ -93,7 +95,18 @@ func (s *Server) listBuilds(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	builds, err := s.store.ListBuilds(r.Context(), app.ID, 50)
+	limit := 5
+	if q := r.URL.Query().Get("limit"); q != "" {
+		if n, err := strconv.Atoi(q); err == nil {
+			limit = n
+		}
+	}
+	if limit < 1 {
+		limit = 1
+	} else if limit > 100 {
+		limit = 100
+	}
+	builds, err := s.store.ListBuilds(r.Context(), app.ID, limit)
 	if err != nil {
 		s.logger.Error("list builds", "err", err)
 		http.Error(w, "internal error", http.StatusInternalServerError)

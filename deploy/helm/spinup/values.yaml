@@ -12,6 +12,18 @@ functions:
   # in the functions namespace. Empty = public/anonymous pull.
   imagePullSecrets: []
 
+  # Platform-level resource policy applied to user-supplied CPU/memory:
+  #   policy=open   (default) — user values are used as-is.
+  #   policy=max    — user values must be <= the caps below; PATCH rejects otherwise.
+  #   policy=forced — the caps below are what actually gets applied; user values ignored.
+  # Empty cpu*/memory* fields mean "no cap" (open/max) or "don't set" (forced).
+  resources:
+    policy: open
+    cpuRequest: ""
+    cpuLimit: ""
+    memoryRequest: ""
+    memoryLimit: ""
+
 # Namespace where SpinApp resources for user functions are created.
 # The chart creates it and grants the control-plane SA CRUD on spinapps there.
 functionsNamespace:

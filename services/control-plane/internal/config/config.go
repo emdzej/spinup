@@ -18,6 +18,20 @@ type Config struct {
 	Metrics   MetricsConfig
 	Worker    WorkerConfig
 	UI        UIConfig
+	// ResourcePolicy governs how per-app CPU/memory values submitted through
+	// the API are treated. See internal/policy for the enforcement details.
+	ResourcePolicy ResourcePolicyConfig
+}
+
+type ResourcePolicyConfig struct {
+	// Mode: "open" (default), "max", or "forced".
+	Mode string
+	// Platform-side quantity strings. In "max" they're upper bounds; in
+	// "forced" they're what actually gets applied.
+	CPURequest    string
+	CPULimit      string
+	MemoryRequest string
+	MemoryLimit   string
 }
 
 type AuthzConfig struct {
@@ -100,6 +114,11 @@ type WorkerConfig struct {
 type K8sConfig struct {
 	// Kubeconfig path for local dev. Ignored when in-cluster config resolves.
 	Kubeconfig string
+	// Kubecontext, when set, overrides the kubeconfig's current-context.
+	// Used by local dev (scripts/dev-cluster.sh) so the CP always talks to
+	// the intended cluster regardless of what `kubectl config current-context`
+	// happens to be. Env: SPINUP_KUBECONTEXT.
+	Kubecontext string
 }
 
 type HTTPConfig struct {
@@ -159,7 +178,8 @@ func Load() (Config, error) {
 			ImagePullSecrets: splitCSV(env("SPINUP_FUNCTIONS_IMAGE_PULL_SECRETS", "")),
 		},
 		K8s: K8sConfig{
-			Kubeconfig: env("SPINUP_KUBECONFIG", ""),
+			Kubeconfig:  env("SPINUP_KUBECONFIG", ""),
+			Kubecontext: env("SPINUP_KUBECONTEXT", ""),
 		},
 		Builder: BuilderConfig{
 			GoImage:          env("SPINUP_BUILDER_IMAGE_GO", "spinup/builder-go:latest"),
@@ -179,6 +199,13 @@ func Load() (Config, error) {
 		},
 		UI: UIConfig{
 			StaticDir: env("SPINUP_UI_STATIC_DIR", ""),
+		},
+		ResourcePolicy: ResourcePolicyConfig{
+			Mode:          env("SPINUP_RESOURCES_POLICY", ""),
+			CPURequest:    env("SPINUP_RESOURCES_CPU_REQUEST", ""),
+			CPULimit:      env("SPINUP_RESOURCES_CPU_LIMIT", ""),
+			MemoryRequest: env("SPINUP_RESOURCES_MEMORY_REQUEST", ""),
+			MemoryLimit:   env("SPINUP_RESOURCES_MEMORY_LIMIT", ""),
 		},
 	}
 

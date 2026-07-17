@@ -13,6 +13,7 @@ import (
 	"log/slog"
 
 	"github.com/emdzej/spinup/services/control-plane/internal/istio"
+	"github.com/emdzej/spinup/services/control-plane/internal/policy"
 	"github.com/emdzej/spinup/services/control-plane/internal/spinapp"
 	"github.com/emdzej/spinup/services/control-plane/internal/store"
 )
@@ -31,25 +32,27 @@ type Request struct {
 // Deployer owns the write-side lifecycle of a deployed application:
 // SpinApp CR + optional Istio VirtualService.
 type Deployer struct {
-	logger        *slog.Logger
-	spin          *spinapp.Client
-	vs            *istio.Client
-	pullSecrets   []string
-	publicDomain  string
-	publicGateway string
+	logger         *slog.Logger
+	spin           *spinapp.Client
+	vs             *istio.Client
+	pullSecrets    []string
+	publicDomain   string
+	publicGateway  string
+	resourcePolicy policy.ResourcePolicy
 }
 
 // New wires the shared clients. When publicDomain/publicGateway are empty
 // (or vs is nil), the VS side is a no-op — legitimate for headless or
 // bearer-only deployments where no ingress ever binds a function subdomain.
-func New(logger *slog.Logger, spin *spinapp.Client, vs *istio.Client, pullSecrets []string, publicDomain, publicGateway string) *Deployer {
+func New(logger *slog.Logger, spin *spinapp.Client, vs *istio.Client, pullSecrets []string, publicDomain, publicGateway string, rp policy.ResourcePolicy) *Deployer {
 	return &Deployer{
-		logger:        logger,
-		spin:          spin,
-		vs:            vs,
-		pullSecrets:   pullSecrets,
-		publicDomain:  publicDomain,
-		publicGateway: publicGateway,
+		logger:         logger,
+		spin:           spin,
+		vs:             vs,
+		pullSecrets:    pullSecrets,
+		publicDomain:   publicDomain,
+		publicGateway:  publicGateway,
+		resourcePolicy: rp,
 	}
 }
 
@@ -64,6 +67,27 @@ func (d *Deployer) Deploy(ctx context.Context, req Request) (*spinapp.Status, er
 	if replicas <= 0 {
 		replicas = 1
 	}
+
+	// Safety net: even if the PATCH handler let something through (or
+	// policy tightened after the app was stored), enforce here too. On
+	// error, fall back to the platform's configured values so we don't
+	// refuse to deploy — misconfiguration is a warning, not a build blocker.
+	cleanRes, err := d.resourcePolicy.Apply(policy.Resources{
+		CPURequest:    req.App.Resources.CPURequest,
+		CPULimit:      req.App.Resources.CPULimit,
+		MemoryRequest: req.App.Resources.MemoryRequest,
+		MemoryLimit:   req.App.Resources.MemoryLimit,
+	})
+	if err != nil {
+		d.logger.Warn("resource policy clamp at apply", "err", err, "name", req.App.Name)
+		cleanRes = policy.Resources{
+			CPURequest:    d.resourcePolicy.CPU.Request,
+			CPULimit:      d.resourcePolicy.CPU.Limit,
+			MemoryRequest: d.resourcePolicy.Mem.Request,
+			MemoryLimit:   d.resourcePolicy.Mem.Limit,
+		}
+	}
+
 	st, err := d.spin.Apply(ctx, spinapp.Spec{
 		Name:             req.App.Name,
 		ApplicationID:    req.App.ID,
@@ -73,10 +97,10 @@ func (d *Deployer) Deploy(ctx context.Context, req Request) (*spinapp.Status, er
 		ImagePullSecrets: d.pullSecrets,
 		Variables:        toSpinappVariables(req.App.Variables),
 		Resources: spinapp.Resources{
-			CPURequest:    req.App.Resources.CPURequest,
-			CPULimit:      req.App.Resources.CPULimit,
-			MemoryRequest: req.App.Resources.MemoryRequest,
-			MemoryLimit:   req.App.Resources.MemoryLimit,
+			CPURequest:    cleanRes.CPURequest,
+			CPULimit:      cleanRes.CPULimit,
+			MemoryRequest: cleanRes.MemoryRequest,
+			MemoryLimit:   cleanRes.MemoryLimit,
 		},
 	})
 	if err != nil {

@@ -17,6 +17,7 @@ import (
 	"github.com/emdzej/spinup/services/control-plane/internal/httpapi"
 	"github.com/emdzej/spinup/services/control-plane/internal/istio"
 	"github.com/emdzej/spinup/services/control-plane/internal/k8s"
+	"github.com/emdzej/spinup/services/control-plane/internal/policy"
 	"github.com/emdzej/spinup/services/control-plane/internal/promql"
 	"github.com/emdzej/spinup/services/control-plane/internal/proxy"
 	"github.com/emdzej/spinup/services/control-plane/internal/session"
@@ -77,7 +78,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	kc, err := k8s.New(cfg.K8s.Kubeconfig)
+	kc, err := k8s.New(cfg.K8s.Kubeconfig, cfg.K8s.Kubecontext)
 	if err != nil {
 		logger.Error("init k8s client", "err", err)
 		os.Exit(1)
@@ -101,7 +102,12 @@ func main() {
 	// Single Deployer used by both the /deploy handler and the builder's
 	// post-build auto-deploy — keeps "publish app to cluster" logic in one
 	// place.
-	deployer := deploy.New(logger, spinClient, vsClient, cfg.Functions.ImagePullSecrets, cfg.Functions.PublicDomain, cfg.Functions.PublicGateway)
+	resourcePolicy := policy.ResourcePolicy{
+		Mode: policy.Mode(cfg.ResourcePolicy.Mode),
+		CPU: policy.Range{Request: cfg.ResourcePolicy.CPURequest, Limit: cfg.ResourcePolicy.CPULimit},
+		Mem: policy.Range{Request: cfg.ResourcePolicy.MemoryRequest, Limit: cfg.ResourcePolicy.MemoryLimit},
+	}
+	deployer := deploy.New(logger, spinClient, vsClient, cfg.Functions.ImagePullSecrets, cfg.Functions.PublicDomain, cfg.Functions.PublicGateway, resourcePolicy)
 	buildRunner := builder.New(builder.Config{
 		Logger:       logger,
 		Kube:         kc.Typed,
@@ -134,7 +140,7 @@ func main() {
 	uiHandler := webui.Handler(cfg.UI.StaticDir)
 	srv := &http.Server{
 		Addr:              cfg.HTTP.Addr,
-		Handler:           httpapi.New(logger, cfg.Version, st, verifier, oauth, spinClient, deployer, buildRunner, metrics, metricsHandler, cfg.Functions, promClient, proxyClient, cfg.Worker, uiHandler),
+		Handler:           httpapi.New(logger, cfg.Version, st, verifier, oauth, spinClient, deployer, buildRunner, metrics, metricsHandler, cfg.Functions, resourcePolicy, promClient, proxyClient, cfg.Worker, uiHandler),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 

@@ -211,6 +211,14 @@
 
   const primaryFilename = $derived(app ? templates[app.language].filename : '');
   const buildable = $derived(app ? isBuildable(app.language) : false);
+
+  type Tab = 'source' | 'invoke' | 'monitoring';
+  let tab = $state<Tab>('source');
+  const tabs: { id: Tab; label: string }[] = [
+    { id: 'source',     label: 'Source' },
+    { id: 'invoke',     label: 'Try it out' },
+    { id: 'monitoring', label: 'Monitoring' },
+  ];
 </script>
 
 <a class="text-fg-muted no-underline text-sm hover:text-fg" href="/applications/{appId}">← {app?.name ?? 'application'}</a>
@@ -256,10 +264,23 @@
     </div>
   </div>
 
+  <!-- Tab bar. Mirrors the applications-detail layout — one active
+       underlined item at a time. -->
+  <nav class="border-b border-border mb-4 flex gap-6">
+    {#each tabs as t (t.id)}
+      <button
+        type="button"
+        onclick={() => (tab = t.id)}
+        class="py-2 px-0.5 text-sm bg-transparent border-0 border-b-2 cursor-pointer transition-colors
+               {tab === t.id ? 'border-accent text-fg font-medium' : 'border-transparent text-fg-muted hover:text-fg'}"
+      >{t.label}</button>
+    {/each}
+  </nav>
+
+  {#if tab === 'source'}
   {#if buildable}
     <section class="card">
-      <div class="flex justify-between items-baseline">
-        <h3>Source</h3>
+      <div class="flex justify-end items-baseline">
         <div class="flex gap-1.5">
           <a class="button" href={api.exportSourceUrl(appId, fnId)} download>Export .tar.gz</a>
           <label class="button">
@@ -323,9 +344,10 @@
       <p class="text-sm">V1 builder supports Go, JavaScript, TypeScript, and Rust — but <code class="text-sm bg-bg-elev px-1.5 py-0.5 rounded">{app.language}</code> is stubbed out.</p>
     </section>
   {/if}
+  {/if}
 
+  {#if tab === 'invoke'}
   <section class="card">
-    <h3>Try it out</h3>
     <p class="muted text-sm">
       Requests are relayed by the control plane through the K8s API server's service proxy
       to <code class="text-sm bg-bg-elev px-1.5 py-0.5 rounded">{app.name}.{app.deployment?.namespace ?? '(namespace)'}</code>. Path prefix
@@ -337,7 +359,9 @@
       <InvokePanel appId={appId} fnId={fnId} route={fn.route} />
     {/if}
   </section>
+  {/if}
 
+  {#if tab === 'monitoring'}
   <section class="card">
     <div class="flex justify-between items-baseline">
       <h3>Traffic</h3>
@@ -400,4 +424,5 @@
       <pre class="bg-[#0b1120] text-[#d1d5db] p-3 mt-2 mx-0 mb-0 max-h-[360px] overflow-auto font-mono text-xs whitespace-pre-wrap rounded-md">{runtimeLogText || '(idle — hit Stream to tail the function pod)'}</pre>
     {/if}
   </section>
+  {/if}
 {/if}

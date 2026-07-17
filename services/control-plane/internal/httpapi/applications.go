@@ -11,6 +11,7 @@ import (
 
 	"github.com/emdzej/spinup/services/control-plane/internal/auth"
 	"github.com/emdzej/spinup/services/control-plane/internal/deploy"
+	"github.com/emdzej/spinup/services/control-plane/internal/policy"
 	"github.com/emdzej/spinup/services/control-plane/internal/spinapp"
 	"github.com/emdzej/spinup/services/control-plane/internal/store"
 )
@@ -307,6 +308,30 @@ func (s *Server) updateApplication(w http.ResponseWriter, r *http.Request) {
 			MemoryRequest: in.Resources.MemoryRequest,
 			MemoryLimit:   in.Resources.MemoryLimit,
 		}
+	}
+	// Platform policy: reject / rewrite the resource values before we
+	// persist so the stored state always agrees with what a fresh Apply
+	// would produce.
+	cleaned, err := s.resourcePolicy.Apply(policy.Resources{
+		CPURequest:    res.CPURequest,
+		CPULimit:      res.CPULimit,
+		MemoryRequest: res.MemoryRequest,
+		MemoryLimit:   res.MemoryLimit,
+	})
+	if err != nil {
+		if policy.IsPolicyViolation(err) {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		} else {
+			s.logger.Error("resource policy apply", "err", err)
+			http.Error(w, "internal error", http.StatusInternalServerError)
+		}
+		return
+	}
+	res = store.Resources{
+		CPURequest:    cleaned.CPURequest,
+		CPULimit:      cleaned.CPULimit,
+		MemoryRequest: cleaned.MemoryRequest,
+		MemoryLimit:   cleaned.MemoryLimit,
 	}
 
 	if err := s.store.UpdateApplicationConfig(r.Context(), defaultTenant, app.ID, desc, replicas, vars, res); err != nil {
