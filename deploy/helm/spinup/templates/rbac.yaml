@@ -22,6 +22,12 @@ rules:
   - apiGroups: [""]
     resources: ["pods/log"]
     verbs: ["get"]
+  # Function invoke proxy uses the Kubernetes services/proxy subresource
+  # to reach the SpinApp Service from outside the pod network (no port-
+  # forward required). Verb "get" is enough — proxy is a subresource GET.
+  - apiGroups: [""]
+    resources: ["services", "services/proxy"]
+    verbs: ["get", "list"]
   # CronJob-based scheduled triggers (planned).
   - apiGroups: ["batch"]
     resources: ["cronjobs"]

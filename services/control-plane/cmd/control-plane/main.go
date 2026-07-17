@@ -108,9 +108,10 @@ func main() {
 		TSImage:      cfg.Builder.TSImage,
 		RustImage:    cfg.Builder.RustImage,
 		RegistryURL:  cfg.Builder.RegistryURL,
-		AuthSecret:       cfg.Builder.AuthSecret,
-		ImagePullSecrets: cfg.Builder.ImagePullSecrets,
-		Metrics:          metrics,
+		AuthSecret:                cfg.Builder.AuthSecret,
+		ImagePullSecrets:          cfg.Builder.ImagePullSecrets,
+		FunctionsImagePullSecrets: cfg.Functions.ImagePullSecrets,
+		Metrics:                   metrics,
 	})
 
 	var promClient *promql.Client

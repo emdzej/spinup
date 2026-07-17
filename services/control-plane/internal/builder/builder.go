@@ -62,7 +62,11 @@ type Config struct {
 	// pull the builder image from a private registry. The Secrets must live
 	// in Namespace (same as the build Jobs). Empty = public registry.
 	ImagePullSecrets []string
-	Metrics          *telemetry.Metrics
+	// FunctionsImagePullSecrets are stamped onto every SpinApp CR the
+	// builder auto-applies after a successful build. Kubelet uses these
+	// to pull the freshly-pushed function image.
+	FunctionsImagePullSecrets []string
+	Metrics                   *telemetry.Metrics
 }
 
 // languageProfile pins per-language build wiring: which builder image runs the Job.
@@ -433,11 +437,12 @@ func (r *Runner) watch(ctx context.Context, buildID string, app store.Applicatio
 
 	logger.Info("build succeeded, applying SpinApp", "image", imageRef)
 	if _, err := r.cfg.Spin.Apply(ctx, spinapp.Spec{
-		Name:          app.Name,
-		ApplicationID: app.ID,
-		TenantID:      app.TenantID,
-		Image:         imageRef,
-		Replicas:      1,
+		Name:             app.Name,
+		ApplicationID:    app.ID,
+		TenantID:         app.TenantID,
+		Image:            imageRef,
+		Replicas:         1,
+		ImagePullSecrets: r.cfg.FunctionsImagePullSecrets,
 	}); err != nil {
 		logger.Error("apply spinapp after build", "err", err)
 		_ = r.cfg.Store.UpdateBuildStatus(ctx, buildID, store.BuildFailed, "apply spinapp: "+err.Error(), &now)
