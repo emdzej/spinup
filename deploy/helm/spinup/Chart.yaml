@@ -2,5 +2,5 @@ apiVersion: v2
 name: spinup
 description: Cloud-functions-style control plane for SpinKube.
 type: application
-version: 0.1.0-alpha.25
-appVersion: "0.1.0-alpha.25"
+version: 0.1.0-alpha.26
+appVersion: "0.1.0-alpha.26"
