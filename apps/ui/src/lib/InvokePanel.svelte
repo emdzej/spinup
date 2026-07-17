@@ -5,13 +5,18 @@
   interface Props {
     appId: string;
     fnId: string;
+    /** Function's mount route (e.g. "/uuid/..."). Used as the initial path
+     *  so the first click on "Send" hits the function, not a bare "/" that
+     *  isn't mounted anywhere. */
+    route?: string;
   }
 
-  let { appId, fnId }: Props = $props();
+  let { appId, fnId, route }: Props = $props();
 
   const methods = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'];
   let method = $state('GET');
-  let path = $state('/');
+  // Strip Spin's "/..." suffix — that's a route matcher, not a real path.
+  let path = $state(route ? route.replace(/\/\.\.\.$/, '') || '/' : '/');
   let query = $state<[string, string][]>([['', '']]);
   let headers = $state<[string, string][]>([['', '']]);
   let body = $state('');

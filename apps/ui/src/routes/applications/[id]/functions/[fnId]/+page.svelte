@@ -334,7 +334,7 @@
     {#if !app.deployment}
       <p class="muted text-sm">Application isn't deployed yet — build it first from the app page.</p>
     {:else}
-      <InvokePanel appId={appId} fnId={fnId} />
+      <InvokePanel appId={appId} fnId={fnId} route={fn.route} />
     {/if}
   </section>
 
