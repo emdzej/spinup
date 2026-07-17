@@ -134,13 +134,15 @@ func (s *Server) createApplication(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "internal error (possibly duplicate name): "+err.Error(), http.StatusInternalServerError)
 		return
 	}
-	// Auto-create the first function. Fixed name "default" so it's stable
-	// across app renames and doesn't shadow the app's identity.
+	// Auto-create the first function. Fixed name "default"; route "/..."
+	// catches everything under the app hostname, so a single-function app
+	// works with no path segment at all. When users add a second function
+	// they typically narrow both routes.
 	fn := store.Function{
 		ID:            uuid.NewString(),
 		ApplicationID: app.ID,
 		Name:          "default",
-		Route:         "/default/...",
+		Route:         "/...",
 	}
 	if err := s.store.CreateFunction(r.Context(), fn); err != nil {
 		// Best-effort cleanup.
