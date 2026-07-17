@@ -303,7 +303,13 @@ func (s *Server) buildDeploymentVW(app store.Application, st *spinapp.Status) *d
 		ServiceName:      app.Name,
 		InternalURL:      "http://" + app.Name + "." + s.functions.Namespace + ".svc.cluster.local",
 	}
-	if s.functions.PublicBaseURL != "" {
+	// Prefer the per-app subdomain (matches what the CP now emits via
+	// VirtualService). Fall back to the legacy /fn/{name} form when only
+	// PublicBaseURL is set (headless / bearer-only deployments).
+	switch {
+	case s.functions.PublicDomain != "":
+		d.PublicURL = "https://" + app.Name + "." + s.functions.PublicDomain
+	case s.functions.PublicBaseURL != "":
 		d.PublicURL = s.functions.PublicBaseURL + "/fn/" + app.Name
 	}
 	// Copy the image size from the build that produced the currently-running
