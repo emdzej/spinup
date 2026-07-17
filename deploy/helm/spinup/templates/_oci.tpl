@@ -1,9 +1,13 @@
 {{/*
-Resolve the effective push URL. Zot mode: use the in-cluster Service DNS.
-External mode: use whatever the operator provided.
+Resolve the effective push URL. If `oci.registryUrl` is set, it always wins
+(needed to route pushes to an externally-exposed Zot so build creds match
+the endpoint kubelet later pulls from). Otherwise, in zot mode, fall back
+to the in-cluster Service DNS; in external mode it's required.
 */}}
 {{- define "spinup.oci.registryUrl" -}}
-{{- if eq .Values.oci.mode "zot" -}}
+{{- if .Values.oci.registryUrl -}}
+{{ .Values.oci.registryUrl }}
+{{- else if eq .Values.oci.mode "zot" -}}
 {{ .Values.oci.zot.service.name }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.oci.zot.service.port }}/spinup
 {{- else -}}
 {{- required "oci.registryUrl is required when oci.mode != \"zot\"" .Values.oci.registryUrl -}}
