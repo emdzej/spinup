@@ -36,9 +36,8 @@ jobs:
           - name: control-plane
             context: .
             dockerfile: services/control-plane/Dockerfile
-          - name: worker
-            context: services/worker
-            dockerfile: services/worker/Dockerfile
+          # worker disabled in release matrix while task #64 (WASI HTTP RC
+          # mismatch) blocks a clean build. Re-add when unblocked.
           - name: builder-go
             context: builders/go
             dockerfile: builders/go/Dockerfile

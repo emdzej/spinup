@@ -26,10 +26,9 @@ jobs:
           cache: true
           cache-dependency-path: services/control-plane/go.sum
 
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-        with:
-          workspaces: services/worker
+      # Rust toolchain omitted — worker is out of CI until task #64
+      # (WASI HTTP RC mismatch) is fixed; cargo-about check re-enable
+      # when the crate builds cleanly.
 
       - uses: pnpm/action-setup@v4
         with:
@@ -46,7 +45,6 @@ jobs:
       - name: Install audit tools
         run: |
           go install github.com/google/go-licenses@latest
-          cargo install --locked --features cli cargo-about
           echo "$HOME/go/bin" >> "$GITHUB_PATH"
 
       - name: Go — check allowed licenses
@@ -61,11 +59,6 @@ jobs:
             --ignore=modernc.org/mathutil \
             --allowed_licenses='Apache-2.0,BSD-2-Clause,BSD-3-Clause,ISC,MIT,MPL-2.0,Unlicense,CC0-1.0,0BSD,Zlib,Unicode-3.0,CDLA-Permissive-2.0,BSL-1.0' \
             ./cmd/control-plane
-
-      - name: Rust — check allowed licenses (via cargo-about)
-        run: |
-          cd services/worker
-          cargo about generate about.hbs > /tmp/rust-notices.md
 
       - name: Regenerate notices and diff against committed
         run: |
