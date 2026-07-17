@@ -11,11 +11,22 @@ spec:
   deploymentConfig:
     runtimeClassName: {{ .Values.spinAppExecutor.runtimeClassName }}
     installDefaultCACerts: {{ .Values.spinAppExecutor.installDefaultCACerts }}
-    {{- if .Values.observability.otelCollector.enabled }}
+    {{- /*
+       Resolve the shim's OTLP endpoint:
+        1. observability.otelExporterUrl wins if set (point at a platform
+           collector like Vector or a hosted service).
+        2. Else, if the bundled collector is enabled, use its in-namespace Service.
+        3. Else, no OTel block at all — the shim skips OTLP export.
+       OTLP/HTTP (4318) is intentional: the shim's gRPC exporter defaults to
+       TLS and doesn't downgrade to h2c, so gRPC silently fails on insecure
+       collectors.
+    */}}
+    {{- $otelUrl := .Values.observability.otelExporterUrl -}}
+    {{- if and (not $otelUrl) .Values.observability.otelCollector.enabled -}}
+      {{- $otelUrl = printf "http://%s-otel-collector.%s.svc.cluster.local:4318" .Chart.Name .Release.Namespace -}}
+    {{- end }}
+    {{- if $otelUrl }}
     otel:
-      # Use OTLP/HTTP (4318). The shim's OTel gRPC exporter defaults to TLS
-      # and does not downgrade to h2c even when the URL scheme is http://,
-      # so the gRPC path silently fails against an insecure collector.
-      exporter_otlp_endpoint: "http://{{ .Chart.Name }}-otel-collector.{{ .Release.Namespace }}.svc.cluster.local:4318"
+      exporter_otlp_endpoint: {{ $otelUrl | quote }}
     {{- end }}
 {{- end }}

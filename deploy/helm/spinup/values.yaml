@@ -32,11 +32,19 @@ spinAppExecutor:
 
 # OCI registry used by the builder to push and by SpinApps to pull.
 observability:
+  # OTLP endpoint the SpinKube shim ships traces/metrics/logs to. When set,
+  # it wins over the bundled collector (`otelCollector.enabled`). Use this
+  # to point at a platform-level Vector / OTel collector so we don't run a
+  # duplicate collector alongside the control plane.
+  #   e.g. "http://vector.monitoring.svc.cluster.local:4318"
+  otelExporterUrl: ""
+
   # Deploy an OpenTelemetry Collector alongside the control plane. Function
   # pods (SpinApps) emit OTLP to it; the collector exports metrics via
   # Prometheus scrape (VictoriaMetrics compatible). Traces + logs currently
   # go to the collector's debug exporter — hook up a real backend by
-  # editing the ConfigMap.
+  # editing the ConfigMap. Leave off when otelExporterUrl points at a
+  # cluster-wide collector.
   otelCollector:
     enabled: false
     image:
