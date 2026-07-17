@@ -2,7 +2,7 @@ import { AutoRouter } from 'itty-router';
 
 const router = AutoRouter();
 
-router.post('/', async (req) => {
+router.post('*', async (req) => {
   const bytes = new Uint8Array(await req.arrayBuffer());
   const digest = await crypto.subtle.digest('SHA-256', bytes);
   const hex = Array.from(new Uint8Array(digest))

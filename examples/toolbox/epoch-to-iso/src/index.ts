@@ -2,7 +2,7 @@ import { AutoRouter } from 'itty-router';
 
 const router = AutoRouter();
 
-router.post('/', async (req) => {
+router.post('*', async (req) => {
   const raw = (await req.text()).trim();
   const n = Number(raw);
   if (!Number.isFinite(n)) {

@@ -3,7 +3,7 @@ import { ResponseBuilder } from '@fermyon/spin-sdk';
 
 const router = AutoRouter();
 
-router.post('/', async (req) => {
+router.post('*', async (req) => {
   const raw = (await req.text()).trim();
   if (!/^[0-9a-fA-F\s]*$/.test(raw)) {
     return new Response('input must be hex (0-9, a-f, A-F, whitespace allowed)', {

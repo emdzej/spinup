@@ -12,7 +12,7 @@ function decodeBase64UrlJson(segment: string): unknown {
   return JSON.parse(json);
 }
 
-router.post('/', async (req) => {
+router.post('*', async (req) => {
   const token = (await req.text()).trim();
   const parts = token.split('.');
   if (parts.length !== 3) {

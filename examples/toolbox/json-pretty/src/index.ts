@@ -5,7 +5,7 @@ const router = AutoRouter();
 // POST body: any JSON value. Query params:
 //   ?indent=<n>   spaces (default 2, max 8)
 //   ?minify=1     override — output on one line, no whitespace
-router.post('/', async (req) => {
+router.post('*', async (req) => {
   const raw = await req.text();
   let value: unknown;
   try {

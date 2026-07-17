@@ -4,7 +4,7 @@ const router = AutoRouter();
 
 // GET /?n=<count> — one UUID per line. Default n=1, cap n=1000 to keep
 // responses bounded.
-router.get('/', ({ query }) => {
+router.get('*', ({ query }) => {
   const raw = Array.isArray(query.n) ? query.n[0] : query.n;
   const n = Math.min(Math.max(parseInt(String(raw ?? '1'), 10) || 1, 1), 1000);
   const lines: string[] = [];

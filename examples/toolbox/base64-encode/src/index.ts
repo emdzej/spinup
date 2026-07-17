@@ -10,7 +10,7 @@ function encodeUtf8Base64(text: string): string {
   return btoa(bin);
 }
 
-router.post('/', async (req) => {
+router.post('*', async (req) => {
   const text = await req.text();
   return new Response(encodeUtf8Base64(text), {
     headers: { 'content-type': 'text/plain' },

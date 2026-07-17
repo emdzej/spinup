@@ -3,7 +3,7 @@ import { AutoRouter } from 'itty-router';
 const router = AutoRouter();
 
 // Returns unix seconds by default. Add ?unit=ms for milliseconds.
-router.post('/', async (req) => {
+router.post('*', async (req) => {
   const raw = (await req.text()).trim();
   const t = Date.parse(raw);
   if (!Number.isFinite(t)) {

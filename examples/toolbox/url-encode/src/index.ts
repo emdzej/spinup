@@ -2,7 +2,7 @@ import { AutoRouter } from 'itty-router';
 
 const router = AutoRouter();
 
-router.post('/', async (req) => {
+router.post('*', async (req) => {
   const text = await req.text();
   // encodeURIComponent covers everything a "form value" should escape:
   // it does NOT preserve /, ?, #, &, =, +, etc. — which is what you want

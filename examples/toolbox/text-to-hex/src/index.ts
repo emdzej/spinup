@@ -2,7 +2,7 @@ import { AutoRouter } from 'itty-router';
 
 const router = AutoRouter();
 
-router.post('/', async (req) => {
+router.post('*', async (req) => {
   const text = await req.text();
   const bytes = new TextEncoder().encode(text);
   const hex = Array.from(bytes)

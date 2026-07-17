@@ -2,7 +2,7 @@ import { AutoRouter } from 'itty-router';
 
 const router = AutoRouter();
 
-router.post('/', async (req) => {
+router.post('*', async (req) => {
   const raw = await req.text();
   try {
     // Also accept the `+`-as-space form used by application/x-www-form-urlencoded.

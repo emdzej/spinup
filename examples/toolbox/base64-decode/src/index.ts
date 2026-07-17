@@ -13,7 +13,7 @@ function decodeBase64Utf8(input: string): string {
   return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
 }
 
-router.post('/', async (req) => {
+router.post('*', async (req) => {
   const input = (await req.text()).trim();
   try {
     return new Response(decodeBase64Utf8(input), {
