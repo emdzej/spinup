@@ -2,8 +2,18 @@ apiVersion: v1
 entries:
   spinup:
   - apiVersion: v2
+    appVersion: 0.1.0-alpha.10
+    created: "2026-07-17T08:57:31.813242953Z"
+    description: Cloud-functions-style control plane for SpinKube.
+    digest: 929510fbee7f5ae8cb1cb934bc239c3904450eae3b35a9b819324c477e39f9aa
+    name: spinup
+    type: application
+    urls:
+    - https://emdzej.github.io/spinup/charts/spinup-0.1.0-alpha.10.tgz
+    version: 0.1.0-alpha.10
+  - apiVersion: v2
     appVersion: 0.1.0-alpha.9
-    created: "2026-07-17T08:32:14.831030149Z"
+    created: "2026-07-17T08:57:31.81964148Z"
     description: Cloud-functions-style control plane for SpinKube.
     digest: 6791e7b5ac57635339d624bcddfcc1a1cbd144b12123458db815f08b552e42f8
     name: spinup
@@ -13,7 +23,7 @@ entries:
     version: 0.1.0-alpha.9
   - apiVersion: v2
     appVersion: 0.1.0-alpha.8
-    created: "2026-07-17T08:32:14.829977093Z"
+    created: "2026-07-17T08:57:31.818906602Z"
     description: Cloud-functions-style control plane for SpinKube.
     digest: d864724df2cc941bcfb389a56e8ab6dcf09d438b0a347af94e0e4a8a9060a2ca
     name: spinup
@@ -23,7 +33,7 @@ entries:
     version: 0.1.0-alpha.8
   - apiVersion: v2
     appVersion: 0.1.0-alpha.7
-    created: "2026-07-17T08:32:14.828829268Z"
+    created: "2026-07-17T08:57:31.818144944Z"
     description: Cloud-functions-style control plane for SpinKube.
     digest: 790949477fa6a9dbcb5359ed7b2d2b529fbeb789aa42b938e432aa53a5183b96
     name: spinup
@@ -33,7 +43,7 @@ entries:
     version: 0.1.0-alpha.7
   - apiVersion: v2
     appVersion: 0.1.0-alpha.6
-    created: "2026-07-17T08:32:14.828159451Z"
+    created: "2026-07-17T08:57:31.816589639Z"
     description: Cloud-functions-style control plane for SpinKube.
     digest: a4332c98428e07c90e6651d1509fb6dbdd02c7d0c293b41bf1188b832b700396
     name: spinup
@@ -43,7 +53,7 @@ entries:
     version: 0.1.0-alpha.6
   - apiVersion: v2
     appVersion: 0.1.0-alpha.5
-    created: "2026-07-17T08:32:14.827485606Z"
+    created: "2026-07-17T08:57:31.815857555Z"
     description: Cloud-functions-style control plane for SpinKube.
     digest: 847fb4d15d5699f002f40cd0b17210dc6851a86653e2c97cf3c86d22a41b5b0d
     name: spinup
@@ -53,7 +63,7 @@ entries:
     version: 0.1.0-alpha.5
   - apiVersion: v2
     appVersion: 0.1.0-alpha.4
-    created: "2026-07-17T08:32:14.826829074Z"
+    created: "2026-07-17T08:57:31.815171421Z"
     description: Cloud-functions-style control plane for SpinKube.
     digest: 81eff7e5b0d063858cf5d5bc597f6b7c840f70068570dfbb87233ceb5a6e00bc
     name: spinup
@@ -63,7 +73,7 @@ entries:
     version: 0.1.0-alpha.4
   - apiVersion: v2
     appVersion: 0.1.0-alpha.3
-    created: "2026-07-17T08:32:14.826168784Z"
+    created: "2026-07-17T08:57:31.814529002Z"
     description: Cloud-functions-style control plane for SpinKube.
     digest: 744e95aec8f2f7caf4570d19092616ce0d290768783f83b5631d31e0d121541d
     name: spinup
@@ -73,7 +83,7 @@ entries:
     version: 0.1.0-alpha.3
   - apiVersion: v2
     appVersion: 0.1.0-alpha.2
-    created: "2026-07-17T08:32:14.825518373Z"
+    created: "2026-07-17T08:57:31.813882307Z"
     description: Cloud-functions-style control plane for SpinKube.
     digest: 2cea08593a421facdcc7db9e64fddf197009b6cf49847453709120fdf54aa7e9
     name: spinup
@@ -83,7 +93,7 @@ entries:
     version: 0.1.0-alpha.2
   - apiVersion: v2
     appVersion: 0.1.0-alpha.1
-    created: "2026-07-17T08:32:14.824884784Z"
+    created: "2026-07-17T08:57:31.812481726Z"
     description: Cloud-functions-style control plane for SpinKube.
     digest: 960c6bc63e305a71ca0e251796b4af3db7eb67b91ead02bc0dacd92b6b0e051a
     name: spinup
@@ -91,4 +101,4 @@ entries:
     urls:
     - https://emdzej.github.io/spinup/charts/spinup-0.1.0-alpha.1.tgz
     version: 0.1.0-alpha.1
-generated: "2026-07-17T08:32:14.824116502Z"
+generated: "2026-07-17T08:57:31.811603592Z"
