@@ -8,7 +8,7 @@ import (
 	"github.com/emdzej/spinup/services/control-plane/internal/auth"
 	"github.com/emdzej/spinup/services/control-plane/internal/builder"
 	"github.com/emdzej/spinup/services/control-plane/internal/config"
-	"github.com/emdzej/spinup/services/control-plane/internal/istio"
+	"github.com/emdzej/spinup/services/control-plane/internal/deploy"
 	"github.com/emdzej/spinup/services/control-plane/internal/promql"
 	"github.com/emdzej/spinup/services/control-plane/internal/proxy"
 	"github.com/emdzej/spinup/services/control-plane/internal/spinapp"
@@ -21,7 +21,7 @@ type Server struct {
 	store     store.Store
 	verifier  *auth.Verifier
 	spin      *spinapp.Client
-	vs        *istio.Client
+	deployer  *deploy.Deployer
 	builder   *builder.Runner
 	metrics   *telemetry.Metrics
 	functions config.FunctionsConfig
@@ -30,9 +30,9 @@ type Server struct {
 	worker    workerRuntime
 }
 
-func New(logger *slog.Logger, st store.Store, v *auth.Verifier, oa *auth.OAuth, spin *spinapp.Client, vs *istio.Client, b *builder.Runner, m *telemetry.Metrics, metricsHandler http.Handler, fns config.FunctionsConfig, prom *promql.Client, prx *proxy.Client, wcfg config.WorkerConfig, uiHandler http.Handler) http.Handler {
+func New(logger *slog.Logger, st store.Store, v *auth.Verifier, oa *auth.OAuth, spin *spinapp.Client, dep *deploy.Deployer, b *builder.Runner, m *telemetry.Metrics, metricsHandler http.Handler, fns config.FunctionsConfig, prom *promql.Client, prx *proxy.Client, wcfg config.WorkerConfig, uiHandler http.Handler) http.Handler {
 	s := &Server{
-		logger: logger, store: st, verifier: v, spin: spin, vs: vs, builder: b, metrics: m,
+		logger: logger, store: st, verifier: v, spin: spin, deployer: dep, builder: b, metrics: m,
 		functions: fns, prom: prom, proxy: prx,
 		worker: workerRuntime{invokeURL: wcfg.URL, uiURL: wcfg.UIURL},
 	}

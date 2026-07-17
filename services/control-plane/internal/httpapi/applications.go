@@ -10,7 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/emdzej/spinup/services/control-plane/internal/auth"
-	"github.com/emdzej/spinup/services/control-plane/internal/istio"
+	"github.com/emdzej/spinup/services/control-plane/internal/deploy"
 	"github.com/emdzej/spinup/services/control-plane/internal/spinapp"
 	"github.com/emdzej/spinup/services/control-plane/internal/store"
 )
@@ -209,17 +209,10 @@ func (s *Server) deleteApplication(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if app.Runtime != store.RuntimeWorkerPool {
-		if err := s.spin.Delete(r.Context(), app.Name); err != nil {
-			s.logger.Error("delete spinapp", "err", err, "name", app.Name)
-			http.Error(w, "delete spinapp: "+err.Error(), http.StatusBadGateway)
+		if err := s.deployer.Undeploy(r.Context(), app.Name); err != nil {
+			s.logger.Error("undeploy application", "err", err, "name", app.Name)
+			http.Error(w, "undeploy: "+err.Error(), http.StatusBadGateway)
 			return
-		}
-		if s.vs != nil {
-			if err := s.vs.Delete(r.Context(), app.Name); err != nil {
-				// Non-fatal: the SpinApp is gone, the VS is just orphaned config.
-				// Log so operators notice; retry manually if needed.
-				s.logger.Warn("delete virtualservice", "err", err, "name", app.Name)
-			}
 		}
 	}
 	if err := s.store.DeleteApplication(r.Context(), defaultTenant, app.ID); err != nil {
@@ -258,35 +251,15 @@ func (s *Server) deployApplication(w http.ResponseWriter, r *http.Request) {
 	if in.Replicas < 1 {
 		in.Replicas = 1
 	}
-	st, err := s.spin.Apply(r.Context(), spinapp.Spec{
-		Name:             app.Name,
-		ApplicationID:    app.ID,
-		TenantID:         app.TenantID,
-		Image:            in.Image,
-		Replicas:         in.Replicas,
-		ImagePullSecrets: s.functions.ImagePullSecrets,
+	st, err := s.deployer.Deploy(r.Context(), deploy.Request{
+		App:      app,
+		Image:    in.Image,
+		Replicas: in.Replicas,
 	})
 	if err != nil {
-		s.logger.Error("apply spinapp", "err", err, "name", app.Name)
+		s.logger.Error("deploy application", "err", err, "name", app.Name)
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
-	}
-	// Emit a per-function VirtualService bound to the platform Gateway so the
-	// function is publicly reachable at <name>.<PublicDomain>. Gate on config —
-	// deployments without an Istio Gateway still work via the CP proxy path.
-	if s.vs != nil && s.functions.PublicDomain != "" && s.functions.PublicGateway != "" {
-		if err := s.vs.Apply(r.Context(), istio.Spec{
-			Name:            app.Name,
-			ApplicationID:   app.ID,
-			Host:            app.Name + "." + s.functions.PublicDomain,
-			Gateway:         s.functions.PublicGateway,
-			DestinationHost: app.Name,
-			DestinationPort: 80,
-		}); err != nil {
-			// Non-fatal: SpinApp is up, ingress is just missing. Operator can
-			// re-deploy to retry or apply the VS by hand.
-			s.logger.Warn("apply virtualservice", "err", err, "name", app.Name)
-		}
 	}
 	s.metrics.DeploysApplied.Add(r.Context(), 1)
 	writeJSON(w, http.StatusOK, s.buildDeploymentVW(app, st))

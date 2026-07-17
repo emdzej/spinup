@@ -13,6 +13,7 @@ import (
 	"github.com/emdzej/spinup/services/control-plane/internal/auth"
 	"github.com/emdzej/spinup/services/control-plane/internal/builder"
 	"github.com/emdzej/spinup/services/control-plane/internal/config"
+	"github.com/emdzej/spinup/services/control-plane/internal/deploy"
 	"github.com/emdzej/spinup/services/control-plane/internal/httpapi"
 	"github.com/emdzej/spinup/services/control-plane/internal/istio"
 	"github.com/emdzej/spinup/services/control-plane/internal/k8s"
@@ -97,6 +98,10 @@ func main() {
 		logger.Info("public function ingress enabled",
 			"domain", cfg.Functions.PublicDomain, "gateway", cfg.Functions.PublicGateway)
 	}
+	// Single Deployer used by both the /deploy handler and the builder's
+	// post-build auto-deploy — keeps "publish app to cluster" logic in one
+	// place.
+	deployer := deploy.New(logger, spinClient, vsClient, cfg.Functions.ImagePullSecrets, cfg.Functions.PublicDomain, cfg.Functions.PublicGateway)
 	buildRunner := builder.New(builder.Config{
 		Logger:       logger,
 		Kube:         kc.Typed,
@@ -108,13 +113,10 @@ func main() {
 		TSImage:      cfg.Builder.TSImage,
 		RustImage:    cfg.Builder.RustImage,
 		RegistryURL:  cfg.Builder.RegistryURL,
-		AuthSecret:                cfg.Builder.AuthSecret,
-		ImagePullSecrets:          cfg.Builder.ImagePullSecrets,
-		FunctionsImagePullSecrets: cfg.Functions.ImagePullSecrets,
-		VS:                        vsClient,
-		PublicDomain:              cfg.Functions.PublicDomain,
-		PublicGateway:             cfg.Functions.PublicGateway,
-		Metrics:                   metrics,
+		AuthSecret:       cfg.Builder.AuthSecret,
+		ImagePullSecrets: cfg.Builder.ImagePullSecrets,
+		Deployer:         deployer,
+		Metrics:          metrics,
 	})
 
 	var promClient *promql.Client
@@ -132,7 +134,7 @@ func main() {
 	uiHandler := webui.Handler(cfg.UI.StaticDir)
 	srv := &http.Server{
 		Addr:              cfg.HTTP.Addr,
-		Handler:           httpapi.New(logger, st, verifier, oauth, spinClient, vsClient, buildRunner, metrics, metricsHandler, cfg.Functions, promClient, proxyClient, cfg.Worker, uiHandler),
+		Handler:           httpapi.New(logger, st, verifier, oauth, spinClient, deployer, buildRunner, metrics, metricsHandler, cfg.Functions, promClient, proxyClient, cfg.Worker, uiHandler),
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
